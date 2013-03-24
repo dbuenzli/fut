@@ -1,0 +1,5 @@
+<**/*.{ml,mli}> : annot, debug, use_unix, thread
+<src> : include
+<test> : include
+<test/test_{basic,timers,queue,unix}.{byte,native}> : use_unix, thread, debug
+<test/uclient.{byte,native}> : use_unix, thread
