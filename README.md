@@ -35,7 +35,7 @@ distribution.
 
 ## Sample programs
 
-If you installed Cmdliner with `opam` sample programs are located in
+If you installed Fut with `opam` sample programs are located in
 the directory `opam config var fut:doc`. 
 
 In the distribution sample programs are located in the `test`
