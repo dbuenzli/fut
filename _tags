@@ -1,5 +1,5 @@
 <**/*.{ml,mli}> : bin_annot, annot, use_unix, thread
 <src> : include
 <test> : include
-<test/test_{basic,timers,queue,unix}.{byte,native}> : use_unix, thread, debug
-<test/uclient.{byte,native}> : use_unix, thread
+<test/test_{basic,timers,queue,unix}.{ml,mli,byte,native}> : package(unix), package(threads), thread
+<test/uclient.{byte,native}> : package(unix), package(threads), thread
