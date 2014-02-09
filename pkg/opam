@@ -1,0 +1,17 @@
+opam-version: "1"
+maintainer: "Daniel Bünzli <daniel.buenzl i@erratique.ch>"
+homepage: "http://erratique.ch/software/vg"
+authors: ["Daniel Bünzli <daniel.buenzli i@erratique.ch>"]
+doc: "http://erratique.ch/software/fut/doc/Fut"
+tags: [ "future" "asynchronous" "system" ]
+license: "BSD3"
+ocaml-version: [>= "4.00.0"]
+depends: [ "ocamlfind" ]
+depopts: [ "js_of_ocaml" ]
+build: 
+[
+  ["./pkg/pkg-git" ] 
+  ["./pkg/build" "true" 
+                 "%{js_of_ocaml:installed}%" ]
+]
+

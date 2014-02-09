@@ -1,4 +1,4 @@
-<**/*.{ml,mli}> : annot, debug, use_unix, thread
+<**/*.{ml,mli}> : bin_annot, annot, use_unix, thread
 <src> : include
 <test> : include
 <test/test_{basic,timers,queue,unix}.{byte,native}> : use_unix, thread, debug
