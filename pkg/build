@@ -11,7 +11,8 @@ NATIVE=$1
 JSOO=$2
 
 add lib pkg/META		
-add lib src/fut.mli	
+add lib src/fut.mli
+add lib src/fut.cmti	
 add lib src/fut.cmi
 add lib src/fut.cmx
 add lib src/fut.cma
@@ -20,6 +21,7 @@ add lib src/fut.cmxa
 add lib src/fut.cmxs
 
 add lib src/fut_unix.mli
+add lib src/fut_unix.cmti
 add lib src/fut_unix.cmi
 add lib src/fut_unix.cmx	
 add lib src/fut_unix.cma
@@ -29,6 +31,7 @@ add lib src/fut_unix.cmxs
 
 if [ "$JSOO" != "false" ]; then 
     add lib src/fut_jsoo.mli	
+    add lib src/fut_jsoo.cmti
     add lib src/fut_jsoo.cmx 
     add lib src/fut_jsoo.cmi
     add lib src/fut_jsoo.cma
