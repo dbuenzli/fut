@@ -1,16 +1,16 @@
 
- Implementation wise, Fut implements a single-threaded cooperative
- model with integrated IO multiplexing and FIFO work queues
- implemented over a thread pool.
+Implementation wise, Fut implements a single-threaded cooperative
+model with integrated IO multiplexing and FIFO work queues implemented
+over a thread pool.
 
 why, wHY, WHY ? 
 
- Main reasons for Fut is disatisfaction with the algebra of Lwt's
- combinators w.r.t to the treatement of exceptions and cancellation
- aswell as with the concepts exposed. The following points highlight
- some of the differences between Lwt and Fut. I don't have a precise
- account for async (don't want to bring in the core library).
 
+Main reasons for Fut is disatisfaction with the algebra of Lwt's
+combinators w.r.t to the treatement of exceptions and cancellation
+aswell as with the concepts exposed. The following points highlight
+some of the differences between Lwt and Fut. I don't have a precise
+account for async (don't want to bring in the core library).
 
 * Fut puts the emphasis on *values* rather than execution by using the
   concept of future and promises. Lwt center around the notion of
@@ -33,16 +33,16 @@ why, wHY, WHY ?
   determined).  The state of an aborted future is set to never
   determine.  Lwt has both cancelable and non-cancelable threads and
   uses an exception for thread cancellation. Sometimes this may lead
-  to surprising results e.g. [Lwt.pick [t, t']] may return a cancelled
-  thread if [t] terminated and [t'] was cancelled. Fut.pick f f' is a
-  never determined future only if both [f] and [f'] never determine
-  (put differently, Fut.never is a neutral element for Fut.pick).
+  to surprising results e.g. `Lwt.pick [t, t']` may return a cancelled
+  thread if `t` terminated and `t'` was cancelled. `Fut.pick f f'` is a
+  never determined future only if both `f` and `f'` never determine
+  (put differently, `Fut.never` is a neutral element for `Fut.pick`).
 
 * Fut defines a simple denotational semantics for futures (a map from
   time to their state). The result of every combinator is defined in
   terms of this semantics. Equational reasoning is however hindered by
   the fact that some combinators perform side-effects on their
-  arguments (e.g. Fut.abort and Fut.pick). But at least the semantics
+  arguments (e.g. `Fut.abort` and `Fut.pick`). But at least the semantics
   of the combinators is precisly defined.
    
 * Fut tries to be minimalistic. I relies solely on the Unix and Thread
@@ -51,6 +51,6 @@ why, wHY, WHY ?
   structures, extension to Unix functionality and careful windows
   support (Fut relies on the Unix module for that).
 
-* Fut does all its IO multiplexing via select(2). This restriction may
-  be lifted future versions. In fact there's an API to write your own
-  backend.
+* Fut does all its IO multiplexing via `select(2)`. This restriction
+  may be lifted future versions. In fact there's an API to write your
+  own backend.
