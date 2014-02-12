@@ -16,50 +16,53 @@ let nop () = ()
    to a value of type ['a set] it never changes again. *)
 
 type 'a set =                              (* states when the future is set. *)
-[ `Never                                    (* future that never determines. *)
-| `Det of 'a ]                           (* future that determined with [v]. *)
+  [ `Never                                  (* future that never determines. *)
+  | `Det of 'a ]                         (* future that determined with [v]. *)
 
 type 'a state =                (* future state as exported in the interface. *)
-[ 'a set 
-| `Undet ]                                           (* undetermined future. *)
+  [ 'a set 
+  | `Undet ]                                         (* undetermined future. *)
 
 (* A waiter is a function associated to an undetermined future to be
    called when the future is set. The waiter is usually registered by
-   another undetermined future. It is a mutable option to avoid space
+   another undetermined future that needs to wait on that result to
+   determine itself.  A waiter is a mutable option to avoid space
    leaks if the waiter is no longer interested, see the [stop_wait]
    field in ['a undet]. *)
 
 type 'a waiter = ('a set -> unit) option ref (* called when a future is set. *)
 
 and 'a waiters =                       (* sets of waiters on a future value. *)
-| Empty                                                        (* empty set. *)
-| Waiter of 'a waiter                                         (* waiter [w]. *)
-| Union of 'a waiters * 'a waiters          (* union of sets [ws] and [ws']. *)
+  | Empty                                                      (* empty set. *)
+  | Waiter of 'a waiter                                       (* waiter [w]. *)
+  | Union of 'a waiters * 'a waiters        (* union of sets [ws] and [ws']. *)
 
 and 'a undet =                                        (* undetermined state. *)
-  { mutable ws : 'a waiters;             (* waiter set of this undetermined. *)
-    mutable ws_adds : int;      (* added waiters in [ws] since last cleanup. *)
-    mutable stop_wait : unit -> unit;       (* sets undet's waiters to None. *)
+  { mutable ws : 'a waiters;                (* waiters on this undetermined. *)
+    mutable ws_adds : int;     (* number of adds in [ws] since last cleanup. *)
+    mutable stop_wait : unit -> unit;    (* stops the wait on other futures. *)
     mutable abort : unit -> unit; }(* custom action invoked once if aborted. *)
 
-(* If an undetermined future is aborted, the following happens.  1)
-   its state is set to [`Never] 2) the [stop_wait] function is called
-   which sets all the waiters it registred to [None] 3) the custom
-   [abort] function is called and 4) waiters [ws] are notified that
-   future is set to [`Never].
+(* If an undetermined future is aborted, the following happens.  
 
-   Aborting an undetermined future has the effect of setting the
-   waiters it registred to [None] in the waiter set [ws] of other
-   undetermined futures. If nothing is done to remove these waiters
-   this can lead to space leaks. The reclaiming strategy is to
-   increment [ws_adds] each time a new waiter is added to [ws]. If
-   [ws_adds] exceeds [Runtime.cleanup_limit], [None] waiters are removed
-   from [ws]. *)
+   1) Its state is set to [`Never].
+   2) The [stop_wait] function is called. This sets all the waiters 
+      it registred in other futures to [None].
+   3) The custom [abort] function is called and 
+   4) Waiters [ws] are notified that future is set to [`Never].
 
-type 'a _state =                                    (* internal future state. *)
-[ 'a set
-| `Undet of 'a undet                                        (* undetermined. *)
-| `Proxy of 'a t ]                                   (* proxy of future [f]. *)
+   With step 2), aborting an undetermined future has the effect of
+   setting the waiters it registred to [None] in the waiter set [ws]
+   of other undetermined futures. If nothing is done to remove these
+   None waiters this can lead to space leaks. The reclaiming strategy
+   is to increment [ws_adds] each time a new waiter is added to
+   [ws]. If [ws_adds] exceeds [Runtime.cleanup_limit], [None] waiters
+   are removed from [ws]. *)
+
+type 'a _state =                                   (* internal future state. *)
+  [ 'a set
+  | `Undet of 'a undet                                      (* undetermined. *)
+  | `Proxy of 'a t ]                                 (* proxy of future [f]. *)
 
 (* The `Proxy state points to another future to define its state. This
    is needed to avoid space leaks in recursive definitions, see §5.5.2
@@ -76,9 +79,9 @@ module R = struct
 
   (* Exception trap *)
 
-  type exn_ctx = [ 
-  | `Queue of string | `Future | `Finalizer | `Backend
-  | `Fd_action | `Timer_action | `Runtime_action | `Signal_action ]
+  type exn_ctx = 
+    [ `Queue of string | `Future | `Finalizer | `Backend
+    | `Fd_action | `Timer_action | `Runtime_action | `Signal_action ]
 
   type exn_info = exn_ctx * exn * string
 
@@ -177,11 +180,11 @@ end
 
 let cleanup ws =                             (* remove None waiters in [ws]. *)
   let rec loop acc = function 
-  | Empty :: wss -> loop acc wss 
-  | Waiter { contents = None } :: wss -> loop acc wss
-  | Waiter { contents = Some _ } as w :: wss -> 
-      if acc = Empty then loop w wss else loop (Union (w, acc)) wss
-  | Union (ws, ws') :: wss -> loop acc (ws :: ws' :: wss)
+  | Empty :: todo -> loop acc todo 
+  | Waiter { contents = None } :: todo -> loop acc todo
+  | Waiter { contents = Some _ } as w :: todo -> 
+      if acc = Empty then loop w todo else loop (Union (w, acc)) todo
+  | Union (ws, ws') :: todo -> loop acc (ws :: ws' :: todo)
   | [] -> acc
   in
   loop Empty [ws]
@@ -193,23 +196,22 @@ let union ws ws' = match ws, ws' with              (* unions [ws] and [ws']. *)
 
 let notify_waiters ws s =                   (* notifies [ws] with state [s]. *)
   let rec loop s = function 
-  | Empty :: wss -> loop s wss 
-  | Waiter { contents = None } :: wss -> loop s wss
-  | Waiter { contents = Some w } :: wss -> w s; loop s wss
-  | Union (w, w') :: wss -> loop s (w :: w' :: wss)
+  | Empty :: todo -> loop s todo 
+  | Waiter { contents = None } :: todo -> loop s todo
+  | Waiter { contents = Some w } :: todo -> w s; loop s todo
+  | Union (w, w') :: todo -> loop s (w :: w' :: todo)
   | [] -> ()
   in
   loop s [ws]
 
 let add_waiter u wf = (* adds waiter with function [wf] to undetermined [u]. *)
   let w = ref (Some wf) in
-  u.ws_adds <- u.ws_adds + 1; 
-  if u.ws_adds > R.cleanup_limit then 
-  (u.ws_adds <- 0; u.ws <- cleanup u.ws);
   u.ws <- union (Waiter w) u.ws;
+  u.ws_adds <- u.ws_adds + 1; 
+  if u.ws_adds > R.cleanup_limit then (u.ws_adds <- 0; u.ws <- cleanup u.ws);
   w
 
-let waits f wf ~on =    (* [f] waits with function [wf] on undetermined [u]. *)
+let waits f wf ~on =   (* [f] waits with function [wf] on undetermined [on]. *)
   let w = add_waiter on wf in
   match f.state with 
   | `Undet u -> u.stop_wait <- fun () -> w := None
@@ -218,26 +220,24 @@ let waits f wf ~on =    (* [f] waits with function [wf] on undetermined [u]. *)
 (* Futures *)
 
 let concat_actions a a' = fun () -> a (); a'()
-let src f = match f.state with (* ret [f] state and compact the proxy chain. *)
-| `Proxy f' ->
-    let rec loop acc f = match f.state with
-    | `Proxy f' -> loop (f' :: acc) f
+let src f = match f.state with (* ret [f]'s src and compacts the proxy chain. *)
+| `Proxy src ->
+    let rec loop acc src = match src.state with
+    | `Proxy src -> loop (src :: acc) src
     | _ -> 
-        let p = `Proxy f in
-        List.iter (fun f' -> f'.state <- p) acc; f
+        let p = `Proxy src in
+        List.iter (fun f -> f.state <- p) acc; f
     in
-    loop [f] f'
+    loop [f] src
 | _ -> f
 
 let state fut = match (src fut).state with
-| `Det _ as v -> v
+| `Det _ | `Never as v -> v
 | `Undet _ -> `Undet
-| `Never -> `Never
 | `Proxy _ -> assert false
 
 let await ?timeout f = match (src f).state with
-| `Det _ as v -> v
-| `Never -> `Never
+| `Det _ | `Never as v -> v
 | `Undet _ -> R.run timeout f; state f
 | `Proxy _ -> assert false
 
@@ -253,26 +253,26 @@ let finally fn v f =
   | `Undet u -> ignore (add_waiter u (fun _ -> trap_finally fn v)); f
   | `Proxy _ -> assert false
 
-let fset f (s : 'a set) = match f.state with              (* sets the future. *)
+let fset f (s : 'a set) = match f.state with             (* sets the future. *)
 | `Undet u ->
     f.state <- (s :> 'a _state);
     if s = `Never then u.abort (); 
     notify_waiters u.ws s;
 | _ -> assert false 
 
-let stop_wait f = match f.state with       (* removes [f] registred waiters. *)
-| `Undet u -> u.stop_wait ()
-| _ -> assert false
+let stop_wait f = match f.state with     (* removes [f]'s registred waiters. *)
+| `Undet u -> u.stop_wait () | _ -> assert false
 
 let set_stop_wait f fn = match f.state with 
-| `Undet u -> u.stop_wait <- fn
-| _ -> assert false
+| `Undet u -> u.stop_wait <- fn | _ -> assert false
 
 let set_abort f fn = match f.state with
-| `Undet u -> u.abort <- fn
-| _ -> assert false
+| `Undet u -> u.abort <- fn | _ -> assert false
 
-let proxy f' f =              (* makes [f'] a proxy of the undetermined [f]. *)
+let proxy f' f =  
+  (* For the undetermined [f], if [f'] is set sets [f] accordingly 
+     otherwise makes [f'] a proxy of the undetermined [f]. 
+     FIXME: the name is not good, maybe [unify] is better*)
   let f = src f in
   let f' = src f' in
   match f.state with 
@@ -298,7 +298,7 @@ let undet_state abort = { ws = Empty; ws_adds = 0; stop_wait = nop; abort }
 let undet () = { state = `Undet (undet_state nop) }
 let never () = { state = `Never } 
 
-let trap_exn fn v = try fn v with
+let trap_fut fn v = try fn v with
 | e -> 
     let bt = Printexc.get_backtrace () in 
     R.exn_trap `Future e bt;
@@ -315,12 +315,14 @@ let trap_det fn v = try `Det (fn v) with
 let ret v = { state = `Det v }
 let bind f fn = match (src f).state with
 | `Never -> never ()
-| `Det v -> fn v         (* do not [trap_exn fn v] it breaks tail-recursion. *)
+| `Det v -> 
+    (* TODO recheck: do not [trap_fut fn v] it breaks tail-recursion. *)
+    fn v 
 | `Undet u ->
     let res = undet () in
     let waiter = function
     | `Never -> fset res `Never
-    | `Det v -> proxy (trap_exn fn v) res      (* [proxy] avoids space leak. *)
+    | `Det v -> proxy (trap_fut fn v) res      (* [proxy] avoids space leak. *)
     in
     waits res waiter ~on:u; 
     res

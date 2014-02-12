@@ -154,9 +154,11 @@ val firstl : 'a t list -> ('a * 'a t list) t
     [`Never], aborting their determination. 
 
     {b Important.} When a future is aborted, only that future is
-    affected and set to never determine. It doesn't affect the determination 
-    of futures it may be waiting on.
-    
+    affected and set to never determine. It doesn't affect the
+    determination of futures it may be waiting on. Also, aborting an a
+    future that is set has no effect since once the future is set it
+    never changes again.
+
     {b Warning.}  If the aborted future is an [`Undet]ermined future from 
     a future queue, there's no guarantee that the corresponding application
     will be/has not been executed when it is set to [`Never]. In any
@@ -207,7 +209,7 @@ type 'a promise
 
 val promise : ?abort:(unit -> unit) -> unit -> 'a promise
 (** [promise abort ()] is a new promise. [abort] is called if the
-    future set by the promise is set to never determine via {!set} or
+    future of the promise is set to never determine via {!set} or
     an {{!effectful}effectful combinator}. Once the future is set
     [abort] is eventually garbage collected. 
     
@@ -279,6 +281,10 @@ exception Never
     [true] the given time is interpreted as an absolute time in POSIX
     seconds since 1970-01-01 00:00:00 UTC. If [d] and [abs] denote 
     an earlier time the future determines immediately.
+
+    {b TODO.} not sure the [abs] argument is a good idea, let's leave
+    POSIX time out of the equation. Ideally backends should implement
+    these functions using a monotonic clock and not POSIX time.
 
     {b Warning.} These futures don't determine if {!await} is not
     called regularly.
@@ -609,12 +615,13 @@ let () = ignore (Fut.sync revolt)
 
     {2:exceptions Exceptions}
 
-    First if the computation to determine a future's value raises an
-    exception, and the exception is logged by the runtime system to
-    the handler provided by {!Runtime.set_exn_trap} (default does
-    nothing). An exception to this behaviour is the {!Never} exception
-    which makes a future never determine without having the exception
-    logged.
+    If the computation to determine a future's value raises an
+    exception it is set to [`Never] determine and the exception is
+    logged by the runtime system to the handler provided by
+    {!Runtime.set_exn_trap} (default does nothing). An exception to
+    this behaviour is the {!Never} exception which makes a future
+    never determine without having the exception logged.
+
     
     It should be considered bad style to rely on the fact that
     exceptions are automatically trapped by the system. This mechanism
@@ -693,7 +700,7 @@ let find k m = Fut.ret (try Some (M.find k m) with Not_found -> None)
 
     In general [Unix.fork] does not cope well with threads. The best
     approach is thus to fork all the processes you need before the
-    first call to {!await}. If you plan to use future queues bac
+    first call to {!await}. If you plan to use future queues TODO
 
 *)
 
