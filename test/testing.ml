@@ -49,10 +49,10 @@ let (assert_trap_init : (unit -> unit)),
   | `Nothing, `Nothing -> () 
   | `Exn (ctx, exn), `Exn (ctx', exn') -> 
       if ctx <> ctx' then 
-      fail "exn in %a, expected %a" pp_exn_ctx ctx' pp_exn_ctx ctx;
+        fail "exn in %a, expected %a" pp_exn_ctx ctx' pp_exn_ctx ctx;
       if exn <> exn' then 
-      fail "exn %s, expected %s" 
-        (Printexc.to_string exn') (Printexc.to_string exn);
+        fail "exn %s, expected %s" 
+          (Printexc.to_string exn') (Printexc.to_string exn);
   | `Nothing, `Exn (ctx, exn) -> 
       fail "exn %s in %a, expected no trap" 
         (Printexc.to_string exn) pp_exn_ctx ctx
