@@ -1,5 +1,8 @@
 <**/*.{ml,mli}> : bin_annot, annot, use_unix, thread
 <src> : include
+
+<src/fut_top.*> : package(compiler-libs.toplevel)
+
 <test> : include
 <test/test_{basic,leaks,timers,queue,unix}.{ml,mli,byte,native}> : package(unix), package(threads), thread
 <test/uclient.{byte,native}> : package(unix), package(threads), thread

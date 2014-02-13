@@ -1,5 +1,8 @@
 #directory "_build/src"
-#directory "+threads"
-#load "unix.cma"
-#load "threads.cma"
-#load "fut.cmo"
+#directory "_build/test"
+
+#use "topfind"
+#thread
+
+#load "_build/src/fut.cmo"
+#use "src/fut_top.ml"

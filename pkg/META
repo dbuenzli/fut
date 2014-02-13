@@ -6,6 +6,18 @@ archive(native) = "fut.cmxa"
 archive(native, plugin) = "fut.cmxs"
 exists_if = "fut.cma"
 
+package "top" (
+ version = "%%VERSION%%"
+ description = "Toplevel module for Fut"
+ requires = "compiler-libs.toplevel"
+ archive(byte) = "fut_top.cma"
+ archive(byte, plugin) = "fut_top.cma"
+ archive(native) = "fut_top.cmxa"
+ archive(native, plugin) = "fut_top.cmxs"
+ exists_if = "fut_top.cma"
+)
+
+
 package "unix" (
   version = "%%VERSION%%"
   description = "Fut's UNIX backend"
