@@ -1,69 +1,49 @@
 (*---------------------------------------------------------------------------
-   Copyright (c) 2012 Daniel C. Bünzli. All rights reserved.
+   Copyright (c) 2014 Daniel C. Bünzli. All rights reserved.
    Distributed under the BSD3 license, see license at the end of the file.
    %%NAME%% release %%VERSION%%
   ---------------------------------------------------------------------------*)
 
-open Fut.Ops
-open Testing
+let str = Printf.sprintf
+
+let suites = 
+  [ `Base, Test_base.suite;
+    `Leaks, Test_leaks.suite; ]
+
+let suite_ids = List.map fst suites  
+
+let tests suite_ids =
+  let test id = (List.assoc id suites) () in
+  List.iter test suite_ids;
+  Testing.log "All tests suceeded.\n"
+
+let main () = 
+  let sid_to_string = function 
+  | `Base -> "`base'" | `Leaks -> "`leaks'" 
+  in
+  let usage = 
+    let suites = String.concat ", " (List.map sid_to_string suite_ids) in
+    str "Usage: %s [SUITE]...\n Tests Fut.\
+         If no SUITE is specified all test suites are run.\n\
+         Arguments:\n  SUITE   one of %s\n\
+         Options:" (Filename.basename Sys.executable_name) suites
+  in
+  let selected = ref [] in
+  let add_suite id = selected := id :: !selected in
+  let options = [] in
+  let anon = function 
+  | "base" -> add_suite `Base 
+  | "leaks" -> add_suite `Leaks 
+  | s -> raise (Arg.Bad (str "no test suite named `%s'" s)) 
+  in
+  Arg.parse (Arg.align options) anon usage;
+  let selected = match List.rev !selected with [] -> suite_ids | l -> l in 
+  tests selected
   
-(* Immediate, should not blow the stack. *)
-
-let simple_loop () = 
-  log "* Test simple loop.\n";
-  let rec loop n = 
-    if n = 0 then Fut.ret 0 else 
-    Fut.ret (pred n) >>= loop
-  in
-  let l = loop 500_000_000 in 
-  is_det l 0
-
-(* Example from Vouillon's paper. Tests the aliasing mechanism. *)
-
-let vouillon_loop () = 
-  log "* Test Vouillon loop.\n";
-  let queue = Queue.create () in
-  let yield () = 
-    let p = Fut.promise () in
-    Queue.push p queue;
-    Fut.future p
-  in
-  let rec run () = 
-    match try Some (Queue.take queue) with Queue.Empty -> None with
-    | Some p -> 
-        Fut.set p (`Det ());
-        run ()
-    | None -> ()
-  in
-  let rec loop n = 
-    if n = 0 then Fut.ret 0 else
-    (yield () >>= fun () -> loop (n - 1))
-  in
-  let l = loop 50_000_000 in
-  is_undet l; run (); is_det l 0
-
-(* Picking, here the waiters of [fut] may grow unbound, if there is
-   no provision for compacting aborted waiters. *)
-
-let pick_loop () = 
-  log "* Test pick loop\n";
-  let fut = Fut.future (Fut.promise ()) in
-  let rec loop n = 
-    if n = 0 then Fut.ret 0 else 
-    Fut.pick (Fut.map succ fut) (Fut.ret (pred n)) >>= loop
-  in
-  let l = loop 200_000_000 in 
-  is_undet fut; is_det l 0
-
-let suite () =
-  log "Testing leaks (witness constant memory usage with top)\n";
-  simple_loop ();
-  vouillon_loop ();
-  pick_loop ();
-  ()
+let () = main ()
 
 (*---------------------------------------------------------------------------
-   Copyright (c) 2012 Daniel C. Bünzli
+   Copyright (c) 2014 Daniel C. Bünzli.
    All rights reserved.
 
    Redistribution and use in source and binary forms, with or without

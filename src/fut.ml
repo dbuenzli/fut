@@ -7,6 +7,7 @@
 let str = Printf.sprintf 
 let pp = Format.fprintf
 
+let err_promise_set = str "promise is already set" 
 let err_invalid_thread_count c = str "thread count must be positive (%d)" c
 
 let nop () = ()

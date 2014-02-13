@@ -7,10 +7,10 @@
 (* Tests the basic combinators. *)
 
 open Fut.Ops;;
-open Test;;
+open Testing;;
 
 let finally () = 
-  log "Test finally\n"; 
+  log "* Test finally\n"; 
   let called = ref 0 in 
   let finally v = incr called; assert (!called == v) in 
   ignore (Fut.finally finally 1 (Fut.ret ())); 
@@ -19,33 +19,33 @@ let finally () =
     let f, p = promise () in
     ignore (Fut.finally finally 3 f);
     ignore (Fut.finally failwith "bla" f);
-    assert_trap_init (); 
+    record_trap (); 
     Fut.set p (`Det "hip");
-    assert_trap (`Exn (`Finalizer, (Failure "bla")));
+    trapped (`Exn (`Finalizer, (Failure "bla")));
     let f, p = promise () in
     ignore (Fut.finally finally 4 f);
     ignore (Fut.finally failwith "blo" f);
-    assert_trap_init (); 
+    record_trap (); 
     Fut.set p `Never;
-    assert_trap (`Exn (`Finalizer, (Failure "blo"))); 
+    trapped (`Exn (`Finalizer, (Failure "blo"))); 
     assert (!called = 4)
   in
   ()
     
 let never () = 
-  log "Test never\n";
+  log "* Test never\n";
   is_never (Fut.never ());
   ()
 
 let ret () = 
-  log "Test ret\n";
+  log "* Test ret\n";
   is_det (Fut.ret ()) ();
   is_det (Fut.ret 4) 4;
   is_det (Fut.ret "bla") "bla";
   ()
 
 let bind () = 
-  log "Test bind\n";
+  log "* Test bind\n";
   is_det (Fut.ret 3 >>= Fut.ret) 3;
   is_never (Fut.ret () >>= Fut.never);
   is_never (Fut.never () >>= Fut.ret);
@@ -55,25 +55,25 @@ let bind () =
   let () = 
     let fut, p = promise () in
     let f = fut >>= failwith in
-    assert_trap_init (); 
+    record_trap (); 
     is_undet f; 
     Fut.set p (`Det "bla"); 
-    assert_trap (`Exn (`Future, (Failure "bla")));
+    trapped (`Exn (`Future, (Failure "bla")));
     is_never f
   in
   let () = 
     let fut, p = promise () in 
     let f = fut >>= failwith in
-    assert_trap_init (); 
+    record_trap (); 
     is_undet f; 
     Fut.set p `Never;
-    assert_trap `Nothing;
+    trapped `Nothing;
     is_never f
   in
   ()
 
 let bind_loop () = 
-  log "Test bind loop\n"; 
+  log "* Test bind loop\n"; 
   let p = ref (Fut.promise ()) in 
   let resume () = Fut.set !p (`Det ()) in
   let yield () = p := Fut.promise (); Fut.future !p in 
@@ -89,13 +89,13 @@ let bind_loop () =
   ()
 
 let app () = 
-  log "Test app\n";
+  log "* Test app\n";
   is_det (Fut.app (Fut.ret succ) (Fut.ret 2)) 3;
   is_never (Fut.app (Fut.never ()) (Fut.ret 2));
   is_never (Fut.app (Fut.ret succ) (Fut.never ()));
-  assert_trap_init (); 
+  record_trap (); 
   is_never (Fut.app (Fut.ret failwith) (Fut.ret "fail"));
-  assert_trap (`Exn (`Future, (Failure "fail")));
+  trapped (`Exn (`Future, (Failure "fail")));
   let () = 
     let ff, pf = promise () in
     let fv, pv = promise () in
@@ -161,34 +161,34 @@ let app () =
     is_undet f; 
     Fut.set pv (`Det "fail"); 
     is_undet f; 
-    assert_trap_init (); 
+    record_trap (); 
     Fut.set pf (`Det failwith);
-    assert_trap (`Exn (`Future, (Failure "fail")));
+    trapped (`Exn (`Future, (Failure "fail")));
     is_never f;
   in
   ()
 
 let map () = 
-  log "Test map\n";
+  log "* Test map\n";
   is_det (Fut.map succ (Fut.ret 2)) 3;
   is_never (Fut.map succ (Fut.never ()));
-  assert_trap_init (); 
+  record_trap (); 
   is_never (Fut.map failwith (Fut.ret "fail")); 
-  assert_trap (`Exn (`Future, Failure "fail"));
+  trapped (`Exn (`Future, Failure "fail"));
   let () = 
     let fv, pv = promise () in 
     let f = Fut.map failwith fv in 
     let f' = Fut.map (fun msg -> "no " ^ msg) fv in 
     is_undet f; is_undet f';
-    assert_trap_init (); 
+    record_trap (); 
     Fut.set pv (`Det "fail");
-    assert_trap (`Exn (`Future, Failure "fail"));
+    trapped (`Exn (`Future, Failure "fail"));
     is_never f; is_det f' "no fail"
   in
   ()
 
 let ignore () = 
-  log "Test ignore\n"; 
+  log "* Test ignore\n"; 
   is_det (Fut.ignore (Fut.ret 3)) (); 
   is_never (Fut.ignore (Fut.never ()));
   let () = 
@@ -205,13 +205,13 @@ let ignore () =
   ()
 
 let fold () = 
-  log "Test fold\n";
+  log "* Test fold\n";
   is_det (Fut.fold (+) 0 [Fut.ret 1; Fut.ret 2; Fut.ret 3]) 6;
   is_never (Fut.fold (+) 0 [Fut.ret 1; Fut.never (); Fut.ret 3]);
   is_det (Fut.fold (+) 3 []) 3;
-  assert_trap_init (); 
+  record_trap (); 
   is_never (Fut.fold (fun _ _ -> failwith "fail") 0 [ Fut.ret 1; Fut.ret 2]);
-  assert_trap (`Exn (`Future, Failure "fail"));
+  trapped (`Exn (`Future, Failure "fail"));
   let () = 
     let f1, p1 = promise () in 
     let f2, p2 = promise () in 
@@ -237,17 +237,17 @@ let fold () =
     Fut.set pn `Never;
     is_undet s1; is_undet s2; is_undet s3; is_undet s4; is_undet s5; 
     is_undet s6; is_never n0; is_never n1; is_never n2; is_never n3;
-    assert_trap_init (); 
+    record_trap (); 
     Fut.set p3 (`Det 3);
     is_det s1 6; is_det s2 6; is_det s3 6; is_det s4 6; is_det s5 6; 
     is_det s6 6; is_never n0; is_never n1; is_never n2; is_never n3;
     is_never t;
-    assert_trap (`Exn (`Future, Failure "fail"));
+    trapped (`Exn (`Future, Failure "fail"));
   in
   ()
 
 let barrier () = 
-  log "Test barrier\n";
+  log "* Test barrier\n";
   let set = true in
   is_det (Fut.barrier [Fut.ret (); Fut.ret (); Fut.ret ()]) ();
   is_never (Fut.barrier [Fut.ret (); Fut.never (); Fut.ret ()]);
@@ -294,7 +294,7 @@ let barrier () =
   ()
 
 let sustain () = 
-  log "Test sustain\n"; 
+  log "* Test sustain\n"; 
   is_det (Fut.sustain (Fut.ret 3) (Fut.ret 2)) 3; 
   is_det (Fut.sustain (Fut.ret 3) (Fut.never ())) 3; 
   is_det (Fut.sustain (Fut.never ()) (Fut.ret 2)) 2;
@@ -326,7 +326,7 @@ let first () =
   | `Det (vs, fs) when v = vs && fs == f -> ()
   | _ -> assert false
   in
-  log "Test first\n";
+  log "* Test first\n";
   is_never (Fut.first (Fut.never ()) (Fut.never ())); 
   let r2 = Fut.ret 2 in
   let rn = Fut.never () in
@@ -361,7 +361,7 @@ let firstl () =
   | `Det (vs, fls) when v = vs && List.for_all2 ( == ) fls fl -> ()
   | _ -> assert false
   in
-  log "Test firstl\n";
+  log "* Test firstl\n";
   is_never (Fut.first (Fut.never ()) (Fut.never ())); 
   let r1, r2, r3, rn = Fut.ret 1, Fut.ret 2, Fut.ret 3, Fut.never () in 
   is_det (Fut.firstl [rn; r1; r2; r3]) (1, [rn; r2; r3]);
@@ -399,19 +399,21 @@ let firstl () =
   ()
 
 let abort () = 
-  log "Test abort\n"; 
+  log "* Test abort\n"; 
   is_never (Fut.abort (Fut.ret 3)); 
   is_never (Fut.abort (Fut.ret 3)); 
   let () = 
     let fv1, pv1 = promise () in 
     is_undet fv1; is_never (Fut.abort fv1); 
-    Fut.set pv1 (`Det 3); 
+    begin try Fut.set pv1 (`Det 3); fail "should raise Invalid_argument" with 
+    | Invalid_argument _ -> ()
+    end;
     is_never fv1; 
   in
   ()
 
 let pick () = 
-  log "Test pick\n"; 
+  log "* Test pick\n"; 
   is_det (Fut.pick (Fut.never ()) (Fut.ret 2)) 2; 
   is_det (Fut.pick (Fut.ret 3) (Fut.never ())) 3;
   is_det (Fut.pick (Fut.ret 3) (Fut.ret 2)) 3;
@@ -433,8 +435,8 @@ let pick () =
   in
   ()
 
-let test () = 
-  Printexc.record_backtrace true;
+let suite () =
+  log "Testing base combinators\n";
   finally ();
   never ();
   ret ();
@@ -449,10 +451,7 @@ let test () =
   first ();
   firstl ();
   abort ();
-  pick ();
-  log "All tests suceeded.\n"
-
-let () = if not (!Sys.interactive) then test ()
+  pick ()
     
 (*---------------------------------------------------------------------------
    Copyright (c) 2012 Daniel C. Bünzli

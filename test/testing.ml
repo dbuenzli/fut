@@ -6,6 +6,7 @@
 
 (* Common test infrastructure *)
 
+let exn_to_str = Printexc.to_string
 let str = Format.sprintf 
 let pp = Format.fprintf 
 let log f = Format.printf (f ^^ "@?") 
@@ -36,31 +37,34 @@ let is_never f = is_state f `Never
 let is_det f d = is_state f (`Det d)
 let is_undet f = is_state f `Undet
 
-let (assert_trap_init : (unit -> unit)),
-    (assert_trap : ([ `Exn of Fut.Runtime.exn_ctx * exn | `Nothing ] -> unit) )
+let (record_trap : (unit -> unit)),
+    (trapped : ([ `Exn of Fut.Runtime.exn_ctx * exn | `Nothing ] -> unit) )
   = 
   let trapped = ref `Nothing in 
-  let init () =
+  let record () =
     trapped := `Nothing;
-    let trap (ctx, e, _) = trapped := `Exn (ctx, e) in
+    let trap (ctx, e, _) = match !trapped with 
+    | `Exn (ctx, exn) -> 
+        (* TODO does set_exn_trap guard against exceptions ? *)
+        fail "trap already invoked (exn %s in %a)" 
+          (exn_to_str exn) pp_exn_ctx ctx
+    | `Nothing -> trapped := `Exn (ctx, e) 
+    in
     Fut.Runtime.set_exn_trap trap 
   in
-  let assn spec = match spec, !trapped with 
+  let trapped spec = match spec, !trapped with 
   | `Nothing, `Nothing -> () 
   | `Exn (ctx, exn), `Exn (ctx', exn') -> 
-      if ctx <> ctx' then 
-        fail "exn in %a, expected %a" pp_exn_ctx ctx' pp_exn_ctx ctx;
-      if exn <> exn' then 
-        fail "exn %s, expected %s" 
-          (Printexc.to_string exn') (Printexc.to_string exn);
+      if ctx <> ctx' 
+      then fail "exn in %a, expected %a" pp_exn_ctx ctx' pp_exn_ctx ctx;
+      if exn <> exn' 
+      then fail "exn %s, expected %s" (exn_to_str exn') (exn_to_str exn);
   | `Nothing, `Exn (ctx, exn) -> 
-      fail "exn %s in %a, expected no trap" 
-        (Printexc.to_string exn) pp_exn_ctx ctx
+      fail "exn %s in %a, expected no trap" (exn_to_str exn) pp_exn_ctx ctx
   | `Exn (ctx, exn), `Nothing -> 
-      fail "no trap, expected %s in %a"
-        (Printexc.to_string exn) pp_exn_ctx ctx
+      fail "no trap, expected %s in %a" (exn_to_str exn) pp_exn_ctx ctx
   in
-  init, assn
+  record, trapped
 
 let promise () = let p = Fut.promise () in Fut.future p, p
     

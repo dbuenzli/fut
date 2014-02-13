@@ -1,69 +1,63 @@
 (*---------------------------------------------------------------------------
-   Copyright (c) 2012 Daniel C. Bünzli. All rights reserved.
+   Copyright (c) 2014 Daniel C. Bünzli. All rights reserved.
    Distributed under the BSD3 license, see license at the end of the file.
    %%NAME%% release %%VERSION%%
   ---------------------------------------------------------------------------*)
 
-open Fut.Ops
-open Testing
-  
-(* Immediate, should not blow the stack. *)
+(** Testing for Fut. 
 
-let simple_loop () = 
-  log "* Test simple loop.\n";
-  let rec loop n = 
-    if n = 0 then Fut.ret 0 else 
-    Fut.ret (pred n) >>= loop
-  in
-  let l = loop 500_000_000 in 
-  is_det l 0
+    A few tools to write tests for [Fut].  *)
 
-(* Example from Vouillon's paper. Tests the aliasing mechanism. *)
+(** {1 Logging} *)
 
-let vouillon_loop () = 
-  log "* Test Vouillon loop.\n";
-  let queue = Queue.create () in
-  let yield () = 
-    let p = Fut.promise () in
-    Queue.push p queue;
-    Fut.future p
-  in
-  let rec run () = 
-    match try Some (Queue.take queue) with Queue.Empty -> None with
-    | Some p -> 
-        Fut.set p (`Det ());
-        run ()
-    | None -> ()
-  in
-  let rec loop n = 
-    if n = 0 then Fut.ret 0 else
-    (yield () >>= fun () -> loop (n - 1))
-  in
-  let l = loop 50_000_000 in
-  is_undet l; run (); is_det l 0
+val str : ('a, unit, string) format -> 'a
+(** [str] is {!Format.sprintf} *)  
 
-(* Picking, here the waiters of [fut] may grow unbound, if there is
-   no provision for compacting aborted waiters. *)
+val pp : Format.formatter -> ('a, Format.formatter, unit) format -> 'a
+(** [pp] is {!Format.fprintf}. *) 
 
-let pick_loop () = 
-  log "* Test pick loop\n";
-  let fut = Fut.future (Fut.promise ()) in
-  let rec loop n = 
-    if n = 0 then Fut.ret 0 else 
-    Fut.pick (Fut.map succ fut) (Fut.ret (pred n)) >>= loop
-  in
-  let l = loop 200_000_000 in 
-  is_undet fut; is_det l 0
+val log : ('a, Format.formatter, unit, unit, unit, unit) format6 -> 'a
+(** [log msg] logs [msg] on stdout. *)
 
-let suite () =
-  log "Testing leaks (witness constant memory usage with top)\n";
-  simple_loop ();
-  vouillon_loop ();
-  pick_loop ();
-  ()
+val fail : ('a, Format.formatter, unit, 'b) format4 -> 'a
+(** [fail msg] raises [Failure msg]. *)
+
+(** {1 Asserting futures} 
+
+    Assert functions just raise [Failure _] when the assertion doesn't
+    hold. Compile with [-g] (and to byte code if the trace is lacunar). *)
+
+val promise : unit -> 'a Fut.t * 'a Fut.promise
+(** [promise ()] is a future and its promise. *) 
+
+val is_state : 'a Fut.t -> 'a Fut.state -> unit
+(** [is state f s] asserts that [f] as state [s]. *)
+
+val is_never : 'a Fut.t -> unit
+(** [is_never f] assert that [f] is set to never determine. *) 
+
+val is_det : 'a Fut.t -> 'a -> unit
+(** [is_det f v] asserts that [f] determined to [v]. *) 
+
+val is_undet : 'a Fut.t -> unit
+(** [is_undet f] asserts that [f] is undetermined. *) 
+
+val record_trap : unit -> unit
+(** [record_trap ()] must be called before operations after
+    which you want to {!assert_trap}. A single exception trap invocation 
+    should occur between [record_trap] and {!assert_trap} otherwise
+    the test fails. *) 
+
+val trapped : [ `Exn of Fut.Runtime.exn_ctx * exn | `Nothing ] -> unit
+(** [trapped v] asserts according to [v]:
+    {ul 
+    {- [`Exn _], trap should have been once called with the corresponding 
+       arguments since the last {!record_trap}.}
+    {- [`Nothing], the trap should not have been invoked since the last
+       {!record_trap}.}} *)
 
 (*---------------------------------------------------------------------------
-   Copyright (c) 2012 Daniel C. Bünzli
+   Copyright (c) 2014 Daniel C. Bünzli.
    All rights reserved.
 
    Redistribution and use in source and binary forms, with or without
