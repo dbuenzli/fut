@@ -24,12 +24,14 @@ type 'a state =                (* future state as exported in the interface. *)
   [ 'a set 
   | `Undet ]                                         (* undetermined future. *)
 
-(* A waiter is a function associated to an undetermined future to be
-   called when the future is set. The waiter is usually registered by
-   another undetermined future that needs to wait on that result to
-   determine itself.  A waiter is a mutable option to avoid space
-   leaks if the waiter is no longer interested, see the [stop_wait]
-   field in ['a undet]. *)
+(* A waiter is a function associated to an undetermined future [f] to
+   be called when the future [f] is set. The waiter is usually (but
+   not only e.g. see [finally]) registered by another undetermined
+   future that needs to wait on that result to determine itself.  A
+   waiter is a mutable option to avoid space leaks if the waiter is no
+   longer interested, for example undetermined futures sometimes set this 
+   reference to [None] when they are set through a call to the [stop_wait] 
+   field of ['a undet]. *)
 
 type 'a waiter = ('a set -> unit) option ref (* called when a future is set. *)
 
@@ -44,8 +46,6 @@ and 'a undet =                                        (* undetermined state. *)
     mutable stop_wait : unit -> unit;    (* stops the wait on other futures. *)
     mutable abort : unit -> unit; }(* custom action invoked once if aborted. *)
      
-
-
 (* If an undetermined future is aborted, the following happens.  
 
    1) Its state is set to [`Never].
@@ -233,7 +233,6 @@ let concat_aborts a a' =
 
 (* Futures *)
 
-
 let src f = match f.state with (* ret [f]'s src and compacts the alias chain. *)
 | `Alias src ->
     begin match src.state with 
@@ -317,6 +316,7 @@ let alias f ~src:res = (* aliases [f] to undet [res]. *)
           u.ws_adds <- u.ws_adds + u'.ws_adds; 
           if u.ws_adds > R.cleanup_limit 
           then (u.ws_adds <- 0; u.ws <- cleanup u.ws);
+          (* concatenate abort actions *) 
           u.abort <- concat_aborts u.abort u'.abort
       | _ -> assert false 
       end
