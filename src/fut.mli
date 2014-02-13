@@ -221,8 +221,10 @@ val future : 'a promise -> 'a t
     {b Note.} This function can be called from other threads. *)
 
 val set : 'a promise -> [`Det of 'a | `Never ] -> unit
-(** [set p s] sets {!future} [p] to [s]. Does {b nothing} 
-    if the future was already set. *)
+(** [set p s] sets {!future} [p] to [s]. 
+
+    @raise Invalid_argument if the future of [p] is already 
+    set. *)
 
 (** {1:queues Future queues} *)
 

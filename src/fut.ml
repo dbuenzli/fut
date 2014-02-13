@@ -610,7 +610,10 @@ type 'a promise = 'a t                         (* the promise is the future. *)
 let promise ?(abort = nop) () = { state = `Undet (undet_state abort) }
 let future p = p
 let set p s = match (src p).state with 
-| `Undet ws -> fset p s | _ -> ()
+| `Undet ws -> fset p s
+| `Det _ | `Never -> invalid_arg err_promise_set
+| `Alias _ -> assert false
+
 
 (* Future queues *)
 
