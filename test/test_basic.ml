@@ -72,6 +72,22 @@ let bind () =
   in
   ()
 
+let bind_loop () = 
+  log "Test bind loop\n"; 
+  let p = ref (Fut.promise ()) in 
+  let resume () = Fut.set !p (`Det ()) in
+  let yield () = p := Fut.promise (); Fut.future !p in 
+  let rec loop n = 
+    if n = 0 then Fut.ret () else 
+    yield () >>= fun () -> loop (n - 1) 
+  in
+  let f = loop 3 in
+  is_undet f; resume (); 
+  is_undet f; resume (); 
+  is_undet f; resume ();
+  is_det f ();
+  ()
+
 let app () = 
   log "Test app\n";
   is_det (Fut.app (Fut.ret succ) (Fut.ret 2)) 3;
@@ -423,6 +439,7 @@ let test () =
   never ();
   ret ();
   bind ();
+  bind_loop ();
   app ();
   map ();
   ignore ();

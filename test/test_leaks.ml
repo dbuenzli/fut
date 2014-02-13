@@ -4,58 +4,64 @@
    %%NAME%% release %%VERSION%%
   ---------------------------------------------------------------------------*)
 
-open Fut.Ops;;
-
+open Fut.Ops
+open Test
+  
 (* Immediate, should not stackoverflow *)
 
 let simple_loop () = 
   let rec loop n = 
-    if n = 0 then Fut.ret () else 
+    if n = 0 then Fut.ret 0 else 
     Fut.ret (pred n) >>= loop
   in
-  loop 100_000_000
+  let l = loop 500_000_000 in 
+  is_det l 0
 
-(* Example from Vouillon's paper. Tests the proxy mechanism. *)
+(* Example from Vouillon's paper. Tests the aliasing mechanism. *)
 
 let vouillon_loop () = 
   let queue = Queue.create () in
   let yield () = 
-    let fut, set = Fut.Low.future () in
-    Queue.push set queue;
-    fut
+    let p = Fut.promise () in
+    Queue.push p queue;
+    Fut.future p
   in
   let rec run () = 
     match try Some (Queue.take queue) with Queue.Empty -> None with
-    | Some set -> Fut.Low.set set (`Det ()); run ()
+    | Some p -> 
+        Fut.set p (`Det ());
+        run ()
     | None -> ()
   in
   let rec loop n = 
-    if n = 0 then Fut.ret () else
-    yield () >>= fun () -> loop (n - 1)
+    if n = 0 then Fut.ret 0 else
+    (yield () >>= fun () -> loop (n - 1))
   in
-  let l = loop 100_000_000 in
-  (ignore l); run ()
+  let l = loop 50_000_000 in
+  is_undet l; run (); is_det l 0
 
-(* Picking, here the waiters of fut may grow unbound, if there is
-   no provision for compacting aborted waiters.
-*)
+(* Picking, here the waiters of [fut] may grow unbound, if there is
+   no provision for compacting aborted waiters. *)
 
 let pick_loop () = 
-  let fut, _ = Fut.Low.future () in
+  let fut = Fut.future (Fut.promise ()) in
   let rec loop n = 
-    if n = 0 then Fut.ret () else 
+    if n = 0 then Fut.ret 0 else 
     Fut.pick (Fut.map succ fut) (Fut.ret (pred n)) >>= loop
   in
-  ignore (loop 100_000)
+  let l = loop 200_000_000 in 
+  is_undet fut; is_det l 0
 
+let test () =
+  log "Simple direct loop.\n";
+  simple_loop ();
+  log "Vouillon loop.\n";
+  vouillon_loop ();
+  log "Pick loop.\n";
+  pick_loop ();
+  log "All tests suceeded.\n"
 
-
-
-
-let () = pick_loop ()
-  
-
-
+let () = if not (!Sys.interactive) then test ()
 
 (*---------------------------------------------------------------------------
    Copyright (c) 2012 Daniel C. Bünzli
