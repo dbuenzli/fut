@@ -16,8 +16,8 @@ Contact: Daniel Bünzli `<daniel.buenzl i@erratique.ch>`
 
 Fut can be installed with `opam`:
 
-    opam install fut
-    opam install js_of_ocaml fut
+    opam install base-unix fut     # Unix backend and Futu
+    opam install js_of_ocaml fut   # js_of_ocaml backend 
 
 If you don't use `opam` consult the [`opam`](opam) file for build
 instructions.

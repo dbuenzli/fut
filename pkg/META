@@ -17,16 +17,27 @@ package "top" (
  exists_if = "fut_top.cma"
 )
 
-
-package "unix" (
+package "u" (
   version = "%%VERSION%%"
-  description = "Fut's UNIX backend"
-  requires = "fut"
-  archive(byte) = "fut_unix.cma"
-  archive(byte, plugin) = "fut_unix.cma"
-  archive(native) = "fut_unix.cmxa"
-  archive(native, plugin) = "fut_unix.cmxs"
-  exists_if = "fut_unix.cma"
+  requires = "unix fut"
+  description "Unix system calls as futures"
+  archive(byte) = "futu.cma"
+  archive(byte) = "futu.cma"
+  archive(byte, plugin) = "futu.cma"
+  archive(native) = "futu.cmxa"
+  archive(native, plugin) = "futu.cmxs"
+  exists_if = "futu.cma"
+)
+
+package "select" (
+  version = "%%VERSION%%"
+  description = "Fut's UNIX select(2) backend"
+  requires = "threads unix fut"
+  archive(byte) = "fut_select.cma"
+  archive(byte, plugin) = "fut_select.cma"
+  archive(native) = "fut_select.cmxa"
+  archive(native, plugin) = "fut_select.cmxs"
+  exists_if = "fut_select.cma"
 )
 
 package "jsoo" (

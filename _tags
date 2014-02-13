@@ -1,8 +1,19 @@
-<**/*.{ml,mli}> : bin_annot, annot, use_unix, thread
+<**/*.{ml,mli}> : bin_annot, annot
 <src> : include
-
+<src/select> : include
+<src/jsoo> : include
 <src/fut_top.*> : package(compiler-libs.toplevel)
 
+<src/select/fut_select.*> : thread, package(threads), package(unix)
+<src/select/fut_backend.*> : thread
+
 <test> : include
-<test/test.{ml,mli,byte,native}> : package(unix), package(threads), thread
-<test/uclient.{byte,native}> : package(unix), package(threads), thread
+<test/test.{ml,mli,byte,native}> : thread, package(threads), package(unix), \
+                                   use_fut_select
+
+<test/test_jsoo.{ml,mli,byte}> : package(js_of_ocaml), \
+                                 package(js_of_ocaml.syntax), \
+                                 syntax(camlp4o), \
+                                 use_fut_jsoo
+
+<test/uclient.{byte,native}> : thread, package(unix), package(threads)

@@ -16,9 +16,10 @@
     long running function applications with a set of system threads
     and act as a mutual exclusion synchronization primitive.
 
-    The {!Fut.Unix} module wraps [Unix] non-blocking calls as futures,
-    abstracting away the underlying IO multiplexing mechanism. It also
-    provides functions to handle [Unix] blocking calls and their errors.
+    The separate {!Futu} library wraps [Unix] non-blocking calls as
+    futures, abstracting away the underlying IO multiplexing
+    mechanism. It also provides functions to handle [Unix] blocking
+    calls and their errors.
 
     Consult the {{!basics}basics}, the {{!semantics}semantics} 
     and {{!examples}examples}. 
@@ -44,7 +45,9 @@ val state : 'a t -> 'a state
 val await : ?timeout:float -> 'a t -> 'a state
 (** [await timeout f], is like {!state} except if [f] is undetermined
     it waits until [f] is set or [timeout] seconds passed. If [timeout] 
-    is unspecified, [await] blocks until [f] is set. *)
+    is unspecified, [await] blocks until [f] is set. 
+
+    @raise Invalid_argument if [timeout] is negative. *)
 
 val finally : ('a -> 'b) -> 'a -> 'c t -> 'c t
 (** [finally fn v f] is [f] but [fn v] is called (and its result ignored) 
@@ -278,53 +281,58 @@ exception Never
 
 (** {1:timers Timers} 
 
-    Timer determine values at specific points in time. All the combinators
-    have an optional [abs] argument that defaults to [false]. If set to 
-    [true] the given time is interpreted as an absolute time in POSIX
-    seconds since 1970-01-01 00:00:00 UTC. If [d] and [abs] denote 
-    an earlier time the future determines immediately.
-
-    {b TODO.} not sure the [abs] argument is a good idea, let's leave
-    POSIX time out of the equation. Ideally backends should implement
-    these functions using a monotonic clock and not POSIX time.
+    Timer determine values at specific points in time.
 
     {b Warning.} These futures don't determine if {!await} is not
     called regularly.
 *)
 
-val tick : ?abs:bool -> float -> unit t
-(** [tick abs d] is a value that determines [()] in [d] seconds.
+val tick : float -> unit t
+(** [tick d] is a value that determines [()] in [d] seconds.
     {ul
-    {- \[[tick false d]\]{_ta+d} [= `Det ()] where [ta] is 
-       [tick]'s application time}
-    {- \[[tick true t]\]{_t} [= `Det `()]}} *)
+    {- \[[tick d]\]{_ta+d} [= `Det ()] where [ta] is 
+       [tick]'s application time}} *)
 
-val delay : ?abs:bool -> float -> (float -> float -> 'a) -> 'a t
-(** [delay abs d fn] is like {!tick} except it determines the value 
-    [fn d d'] where [d'] is the delay (or absolute time) 
-    that was actually performed by the runtime sytem. *)
+val delay : float -> (float -> float -> 'a) -> 'a t
+(** [delay d fn] is like {!tick} except it determines the value 
+    [fn d d'] where [d'] is the delay that was actually performed 
+    by the runtime sytem. *)
 
-val timeout : ?abs:bool -> float -> 'a t -> [> `Timeout | `Ok of 'a ] t
-(** [timeout abs d f] is a value that determines [`Ok v] if [f]
+val timeout : float -> 'a t -> [> `Timeout | `Ok of 'a ] t
+(** [timeout d f] is a value that determines [`Ok v] if [f]
     determines with [v] before [d] seconds. In any other case 
     it determines with [`Timeout] after [d] seconds and aborts [f] if
     it is still undetermined.
     {ul 
-     {- \[[timeout false d f]\]{_ta + d} [= `Det (`Ok v)] 
+     {- \[[timeout d f]\]{_ta + d} [= `Det (`Ok v)] 
         if there is [t < ta + d] with \[[f]\]{_t} [= `Det v] where
         [ta] is [timeout]'s application time.}
-     {- [timeout false d f]\]{_ta + d} [= `Det `Timeout] and
-        \[[f]\]{_ta + d} [= `Never] otherwise.}
-     {- \[[timeout true t f]\]{_t} [= `Det (`Ok v)] 
-        if there is [t' < t] with \[[f]\]{_t'} [= `Det v].}
-     {- \[[timeout true t f]\]{_t} [= `Det `Timeout] and
-        \[[f]\]{_t} [= `Never] otherwise.}} 
+     {- [timeout d f]\]{_ta + d} [= `Det `Timeout] and
+        \[[f]\]{_ta + d} [= `Never] otherwise.}}
     Can be seen as a short hand for
 {[
     Fut.pick (Fut.link (fun v -> ret (`Ok v)) f) 
              (Fut.link (fun () -> ret `Timeout) Fut.tick abs d)
 ]}
 *)
+
+(** {1 Infix operators} 
+
+    Use of these operators may kill a few parentheses. *)
+
+val (>>=) : 'a t -> ('a -> 'b t) -> 'b t
+(** [f >>= fn] is [bind f fn]. *)
+
+(** Infix operators. 
+
+    In a module to open. *)
+module Ops : sig
+
+  (** {1 Binding operators} *)
+
+  val (>>=) : 'a t -> ('a -> 'b t) -> 'b t
+  (** [f >>= fn] is [bind f fn]. *)
+end
 
 (** {1 Runtime system} *)
 
@@ -338,7 +346,6 @@ module Runtime : sig
   type exn_ctx = 
   [ `Queue of string | `Future | `Finalizer | `Backend
   | `Fd_action | `Timer_action | `Signal_action | `Runtime_action ]
-
   (** The type for exception contexts. *)
 
   type exn_info = exn_ctx * exn * string
@@ -347,20 +354,22 @@ module Runtime : sig
 
   val set_exn_trap : (exn_info -> unit) -> unit
   (** [set_exn_trap h] is a function called whenever the runtime
-      system catches an exception. *)
+      system traps an exception. *)
 
   val pp_exn_info : Format.formatter -> exn_info -> unit
   (** [pp_exn_info ppf i] prints an unspecified representation of [i]
       on [ppf]. *)
-    
-  (** {1 System threads} *)
-    
-  val thread_count : unit -> int 
-  (** [thread_count] is the number of threads used for future queues. *)
+  
+  (** {1 Workers} 
 
-  val set_thread_count : int -> unit
-  (** [set_worker_count n] sets the number of threads used for worker
-      queues to [n]. 
+      {b Note.} Usually a worker corresponds to a system thread. *)
+    
+  val worker_count : unit -> int 
+  (** [thread_count] is the number of workers used for future queues. *)
+
+  val set_worker_count : int -> unit
+  (** [set_worker_count n] sets the number of workers (usually threads) used 
+      for worker queues to [n]. 
 
       {b Note.} Calling this function explicitely with [n > 0] makes the 
       program multithreaded. *)
@@ -389,148 +398,19 @@ module Runtime : sig
   (** [timer_action t a] executes [a ()] at time [t] where [t] is
       interpreted as an absolute time in POSIX seconds since
       1970-01-01 00:00:00 UTC. If [t] is earlier than the current
-      time it must be executed at some point, but not immediatly. *)
+      time it must be executed at some point, but not immediatly. 
+      
+      TODO change semantics t should be a delay from now. 
+*)
 
-  (** {1 File descriptor actions} *)
-
-  type fd_state = [ `R | `W ]
-  (** The type for file descriptor states. [`R] means readable and 
-      [`W] writable. *)
-
-  val fd_action : fd_state -> Unix.file_descr -> (bool -> unit) -> unit
+  (** {1 File descriptor actions and closing} *)
+                                                
+  val fd_action : [ `R | `W ] -> Unix.file_descr -> (bool -> unit) -> unit
   (** [fd_action fds fd a] executes [a true] whenever [fd] is in the
       state [fds]. If [fd] is closed [a false] executed. *)
 
-  (** {1 Runtime backend} *)
-
-  (* TODO *)
-end
-
-(** {1 Unix} *)
-
-(** Unix system calls as futures. 
-
-    This module wraps {!Unix} system calls that support asynchronous
-    operation and a few other as futures.
-
-    For other blocking [Unix] system calls you can invoke them with
-    {!Unix.apply} which uses {{!queues}future queues} to perform the
-    call, catches unix errors and automatically handles the [EINTR]
-    error by retrying the call.
-    
-    {b Important.} File descriptors created outside this module
-    must be set to non-blocking mode with {!Unix.set_nonblock}
-    before they are used with functions of this module.
-*)
-module Unix : sig
-
-  (** {1 Unix results and errors} *)
-
-  type error = Unix.error * string * string 
-  (** The type for Unix errors as reported by {!Unix.Unix_error} 
-      exceptions. *)
-
-  type 'a result = [ `Error of error | `Ok of 'a ]
-  (** The type for Unix function results. *)
-
-  val ubind : [> 'b result] t -> ('a -> [> 'b result] t) -> [> 'b result] t
-
-  val apply : ?queue:queue -> ('a -> 'b) -> 'a -> [> 'b result] t
-  (** [apply queue f v] applies [f v] on [queue] and catches 
-      {!Unix.Unix_error}. [EINTR] is handled by retrying the call. *)
-
-  val call : ('a -> 'b) -> 'a -> [> 'b result] t
-  (** [call f v] applies [f v] synchronously and catches 
-      {!Unix.Unix_error}. [EINTR] is handled by retrying the call. *)
-
-  (** {1 Signals} *)
-
-  val signal : int -> int t 
-  (** [signal s] determines with [s] when the signal [s] is received.
-
-      {b Warning.} This replaces any handler set with {!Sys.set_signal}. *)
-
-  (** {1 File descriptors} *)
-
-  val nonblock_stdio : unit -> [> unit result ] t
-  (** [nonblock_stdio ()] sets {!Unix.stdin}, {!Unix.stdout}, {!Unix.stderr}
-      to non-blocking mode. *)
-
-  val close : Unix.file_descr -> [> unit result ] t
-  (** [close fd] is like [Unix.close fd], except it handles [EINTR] and
-      sets any pending read or write on [fd] to never determine. *)
-
-  val dup2 : Unix.file_descr -> Unix.file_descr -> [> unit result] t
-  (** [dup2 fd1 fd2] is like [Unix.dup2 fd1 fd2], except it handles [EINTR]
-      and sets any pending read or write on [fd2] to never determine. *)
-
-  val pipe : unit -> [> (Unix.file_descr * Unix.file_descr) result ] t
-  (** [pipe ()] is like [Unix.pipe ()], except is sets both file descriptors
-      to non-blocking mode with [Unix.set_nonblock]. *)
-      
-  (** {1 Sockets} *)
-
-  val socket : Unix.socket_domain -> Unix.socket_type -> int -> 
-    [> Unix.file_descr result] t
-  (** [socket d t p] is like [Unix.socket d t p] except it sets the
-      resulting file descriptor to non-blocking mode with
-      [Unix.set_nonblock]. *)
-
-  val socketpair : Unix.socket_domain -> Unix.socket_type -> int -> 
-    [> (Unix.file_descr * Unix.file_descr) result] t
-  (** [socketpair d t p] is like [Unix.socketpair d t p] except it
-      sets the resulting file descriptors to non-blocking mode with
-      [Unix.set_nonblock].  *)
-
-  val accept : Unix.file_descr -> Unix.file_descr * Unix.sockaddr 
-  (** [accept fd] is like [Unix.accept fd] except it handles 
-      [EINTR] and [EWOULDBLOCK] and sets the resulting file descriptor
-      to non-blocking mode with [Unix.set_nonblock]. *)
-
-  val connect : Unix.file_descr -> Unix.sockaddr -> [> unit result ] t
-  (** [connect] is like {!Unix.connect} except it handles [EINTR] and
-      [EINPROGRESS]. *)
-
-  val bind : Unix.file_descr -> Unix.sockaddr -> 
-    [`Error of Unix.error | `Ok ] t
-
-  (** {1 IO} 
-
-      {b Important.} If you use these functions on a file descriptor
-      [fd] use {!close} and {!dup2} instead of the corresponding
-      functions of the [Unix] module. This will prevent any [EBADF]
-      errors if there are undetermined futures concerning [fd]. *)
-
-  val read : Unix.file_descr -> string -> int -> int -> [> int result ] t
-  (** [read fd s j l] is like [Unix.read fd s j l] except it handles [EINTR], 
-      [EAGAIN] and [EWOULDBLOCK]. It is set to never determine if [fd] is
-      closed with {!close} or {!dup2}. *)
-    
-  val write : Unix.file_descr -> string -> int -> int -> [> int result ] t 
-  (** [write fd s j l] is like [Unix.single_write fd s j l] except it handles 
-      [EINTR], [EAGAIN] and [EWOULDBLOCK]. It is set to never determine if [fd]
-      is closed with {!close} or {!dup2}. *)
-
-end
-
-(** {1 Infix operators} 
-
-    Use of these operators may kill a few parentheses. *)
-
-val (>>=) : 'a t -> ('a -> 'b t) -> 'b t
-(** [f >>= fn] is [bind f fn]. *)
-
-(** Infix operators. 
-
-    In a module to open. *)
-module Ops : sig
-
-  (** {1 Binding operators} *)
-
-  val (>>=) : 'a t -> ('a -> 'b t) -> 'b t
-  (** [f >>= fn] is [bind f fn]. *)
-
-  val (|>) : 'a Unix.result t -> ('a -> [> 'b Unix.result]) -> 'b t
+  val fd_close : Unix.file_descr -> unit
+  (** TODO *) 
 end
 
 
@@ -570,12 +450,12 @@ open Fut.Ops;;
 
 let time_to_revolt d = Fut.tick d in
 let revolt =
-  time_to_revolt 1.871 >>= fun `Tick ->
+  time_to_revolt 1.871              >>= fun `Tick ->
   Fut.apply Printf.printf "Revolt!" >>= fun () -> 
-  time_to_revolt 0.72 >>= fun `Tick -> 
+  time_to_revolt 0.72               >>= fun `Tick -> 
   Fut.apply Printf.printf "Again!"
 
-let () = ignore (Fut.sync revolt)
+let () = ignore (Fut.await revolt)
 ]}
 
     {2:semantics Semantics}
@@ -646,6 +526,7 @@ let find k m = Fut.ret (try Some (M.find k m) with Not_found -> None)
 ]}
 
     TODO default trap logs to stderr.
+    TODO Never is only for future queues.
 
     {2:futqueues Future queues}
 
