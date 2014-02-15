@@ -8,7 +8,7 @@
 <src/select/fut_backend.*> : thread
 
 <test> : include
-<test/test.{ml,mli,byte,native}> : thread, package(threads), package(unix), \
+<test/{test,cancel}.{ml,mli,byte,native}> : thread, package(threads), package(unix), \
                                    use_fut_select
 
 <test/test_jsoo.{ml,mli,byte}> : package(js_of_ocaml), \

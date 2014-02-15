@@ -11,3 +11,7 @@
   already scheduled.
 * test timers. 
 * use Printexc.raw_backtraces for the exception trap.
+* firstl define semantics for empty list
+* Fut.{first,pick} should we tag with `Left | `Right maybe less 
+  Fut.map's would need to be introcuded ? But then Fut.{firstl,pickl}
+  wouldn't tag. 
