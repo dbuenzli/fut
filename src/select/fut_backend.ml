@@ -7,50 +7,25 @@
 (* select(2) backend *)
 
 let name = "fut.select"  
-    
-module Fd = struct
-  type t = Unix.file_descr
-  let compare : Unix.file_descr -> Unix.file_descr -> int = compare
-end
 
-module Fdmap = struct                            (* file descriptors maps. *)
-  include Map.Make (Fd)
-  let domain m = fold (fun k _ acc -> k :: acc) m []   
-  let add_action m fd a = 
-    let acts = a :: try find fd m with Not_found -> [] in 
-    add fd acts m
-end
-
-module Sig = struct
-  type t = int
-  let compare : int -> int -> int = compare
-end
-
-module Sigmap = struct
-  include Map.Make (Sig)
-  let add_action m s a = 
-    let acts = a :: try find s m with Not_found -> [] in 
-    add s acts m
-end
+(* Timer actions *) 
 
 (* FIXME. This should be a monotonic clock, gettimeofday () can run 
    backwards. Use:
    - mach_absolute_time () on macosx.
    - clock_gettime(CLOCK_MONOTONIC,t) on linux
    - QueryPerformanceCounter() on windows. *)
-
 let now = Unix.gettimeofday 
-  
+
 module Timeline : sig
   type t
-   
   val add_action : t -> float -> 
     (Fut_backend_base.abort -> (float -> unit) * 'a) -> 'a
   val deadline : t -> float option   (* next deadline in seconds. *)
   val expired : t -> (unit -> unit) option
   val create : ?size:int -> unit -> t
 end = struct        
-    
+  
   (* Actions are sorted on the timeline in a imperative heap. Action
      cancellation is handled by having the stored action mutable to
      [None].  *)
@@ -134,10 +109,6 @@ end = struct
     loop (now ())
 end 
 
-(* Runtime globals *)
-
-(* Timer actions *)
-
 let timeline = ref (Timeline.create ~size:0 ())
 let start_timer_actions () = timeline := Timeline.create ()
 let stop_timer_actions () = timeline := Timeline.create ~size:0 ()
@@ -148,6 +119,19 @@ let rec exec_timer_actions () = match Timeline.expired (!timeline) with
 | None -> ()
           
 (* File descriptor actions *)
+
+module Fd = struct
+  type t = Unix.file_descr
+  let compare : Unix.file_descr -> Unix.file_descr -> int = compare
+end
+
+module Fdmap = struct                            (* file descriptors maps. *)
+  include Map.Make (Fd)
+  let domain m = fold (fun k _ acc -> k :: acc) m []   
+  let add_action m fd a = 
+    let acts = a :: try find fd m with Not_found -> [] in 
+    add fd acts m
+end
 
 let fd_r = ref Fdmap.empty
 let fd_w = ref Fdmap.empty
@@ -184,11 +168,11 @@ let exec_fd_actions timeout =
         
 (* Unblock select () via pipe *) 
         
-let unblock_r = ref Unix.stdin (* dummy *) 
-let unblock_w = ref Unix.stdout (* dummy *)          
+let unblock_r = ref Unix.stdin  (* dummy for init *) 
+let unblock_w = ref Unix.stdout (* dummy for init *)          
     
 let rec unblock () =                               (* write on !unblock_w *) 
-  try Pervasives.ignore (Unix.single_write !unblock_w "\x2A" 0 1) with
+  try ignore (Unix.single_write !unblock_w "\x2A" 0 1) with
   | Unix.Unix_error (Unix.EINTR, _, _) -> unblock ()
   | Unix.Unix_error ((Unix.EAGAIN | Unix.EWOULDBLOCK), _, _) -> ()
   | e ->
@@ -196,9 +180,7 @@ let rec unblock () =                               (* write on !unblock_w *)
       Fut_backend_base.exn_trap `Backend e bt
         
 let rec unblocked _ =                     (* consume data from !unblock_r *) 
-  try 
-    Pervasives.ignore (Unix.read !unblock_r "0123456789" 0 10); unblocked true
-  with
+  try ignore (Unix.read !unblock_r "0123456789" 0 10); unblocked true with
   | Unix.Unix_error (err, _, _) as e -> match err with 
   | Unix.EINTR -> unblocked true 
   | Unix.EAGAIN | Unix.EWOULDBLOCK -> fd_action `R !unblock_r unblocked 
@@ -226,6 +208,18 @@ let stop_unblock () =
   Fut_backend_base.trap `Backend (close unblock_w) Unix.stdout
     
 (* Signal actions *)
+
+module Sig = struct
+  type t = int
+  let compare : int -> int -> int = compare
+end
+
+module Sigmap = struct
+  include Map.Make (Sig)
+  let add_action m s a = 
+    let acts = a :: try find s m with Not_found -> [] in 
+    add s acts m
+end
     
 let sigs = ref []                                    (* delivered signals. *) 
 let sigactions = ref Sigmap.empty
@@ -233,7 +227,7 @@ let stop_signal_actions () = sigs := []; sigactions := Sigmap.empty
 let signal_action s a = 
   sigactions := Sigmap.add_action !sigactions s a;
   let h s = sigs := s :: !sigs; unblock () in
-  Pervasives.ignore (Sys.signal s (Sys.Signal_handle h))
+  ignore (Sys.signal s (Sys.Signal_handle h))
     
 let exec_signal_actions () = 
   let exec s =
@@ -262,7 +256,7 @@ let exec_runtime_actions () =
   List.iter (fun a -> Fut_backend_base.trap `Runtime_action a ()) 
     (List.rev acts)
     
-(* Start, stop and run the runtime *)
+(* Start, stop and step the runtime *)
     
 let start () = start_timer_actions (); start_unblock ()
 let stop () = 
@@ -279,7 +273,8 @@ let step ~timeout =
   exec_timer_actions ();
   exec_runtime_actions ();
   now () -. start 
-  
+
+(* Queues *)  
 
 module Queue = struct               (* work queues over a pool of threads. *)
   type t =
@@ -318,12 +313,11 @@ module Queue = struct               (* work queues over a pool of threads. *)
   let add_work q work =                     (* assert [work] must not raise. *)
     let add q work =
       Queue.add work q.q; 
-      if not q.busy || q == concurrent then 
-        begin 
-          let no_queue_before = not (queue_waiting ()) in 
-          schedule_queue q;
-          if no_queue_before then wakeup_workers ();
-        end
+      if not q.busy || q == concurrent then begin 
+        let no_queue_before = not (queue_waiting ()) in 
+        schedule_queue q;
+        if no_queue_before then wakeup_workers ();
+      end
     in
     with_scheduler (add q) work
       
@@ -349,7 +343,7 @@ module Queue = struct               (* work queues over a pool of threads. *)
     let aux count = match count - !workers with 
     | 0 -> () 
     | n when n > 0 -> 
-        for i = 1 to n do Pervasives.ignore (Thread.create worker ()) done;
+        for i = 1 to n do ignore (Thread.create worker ()) done;
         workers := count;
     | n -> 
         excess := -n; 
