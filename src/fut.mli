@@ -226,10 +226,11 @@ val future : 'a promise -> 'a t
     {b Note.} This function can be called from other threads. *)
 
 val set : 'a promise -> [`Det of 'a | `Never ] -> unit
-(** [set p s] sets {!future} [p] to [s]. 
-
-    @raise Invalid_argument if the future of [p] is already 
-    set. *)
+(** [set p s] sets {!future} [p] to [s]. Does nothing if the 
+    future of [p] is already set. 
+    
+    Not thread safe, if you need to set the promise from another 
+    thread use a {!Runtime.action}. *) 
 
 (** {1:queues Future queues} *)
 

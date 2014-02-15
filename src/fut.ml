@@ -535,11 +535,13 @@ let link f = failwith "TODO"
 type 'a promise = 'a t                         (* the promise is the future. *)
 let promise ?(abort = nop) () = undet_abort abort
 let future p = p
-let set p s = match (src p).state with 
-| `Undet ws -> fset p s
-| `Det _ | `Never -> invalid_arg err_promise_set
-| `Alias _ -> assert false
-
+let set promise set = 
+  let promise = src promise in
+  match promise.state with 
+  | `Undet _ -> fut_set promise set 
+  | `Det _ -> () | `Never -> ()
+  | `Alias _ -> assert false
+    
 (* Future queues *)
 
 module Queue = Runtime.Queue
