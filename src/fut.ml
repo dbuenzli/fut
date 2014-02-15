@@ -76,16 +76,16 @@ type 'a _state =                                   (* internal future state. *)
    in Jérôme Vouillon, Lwt a cooperative thread library, ACM SIGPLAN
    Workshop on ML, 2008. *)
 
-and 'a t = { mutable state : 'a _state }                          (* future. *)
+and 'a t = { mutable state : 'a _state }                        (* future. *)
 
 (* Runtime system. *)
 
 module Runtime = struct
 
-  let cleanup_limit = 97
   include Fut_backend_base 
   include Fut_backend     
 
+  let cleanup_limit = 97
   let worker_count = Queue.worker_count
   let set_worker_count count = 
     if count < 0 then invalid_arg (err_invalid_worker_count count) else
@@ -145,7 +145,7 @@ let concat_aborts a a' =
 
 (* Futures *)
 
-let src f = match f.state with (* ret [f]'s src and compacts the alias chain. *)
+let src f = match f.state with (* get [f]'s src and compacts the alias chain. *)
 | `Alias src ->
     begin match src.state with 
     | `Alias src -> (* compact *) 
@@ -227,7 +227,7 @@ let trap_det fn v = try `Det (fn v) with
     Runtime.exn_trap `Future e bt; 
     `Never
 
-let alias f ~src:res = (* aliases [f] to undet [res]. *) 
+let alias f ~src:res =                        (* aliases [f] to undet [res]. *)
   let f = src f in
   let res = src res in 
   match res.state with 
@@ -472,7 +472,7 @@ let firstl fs =
 
 (* Effectful combinators *)
 
-let fabort f u = 
+let fabort f u =
   f.state <- `Never; 
   u.stop_wait ();
   u.abort ();
@@ -526,7 +526,7 @@ let pick f f' =
       end
   | `Alias _ -> assert false 
 
-let pickl l = failwith "TODO"
+let pickl fs = List.fold_left pick (never ()) fs (* TODO implement directly *)
 let link f = failwith "TODO"
   
 (* Promises *)
@@ -538,7 +538,6 @@ let set p s = match (src p).state with
 | `Undet ws -> fset p s
 | `Det _ | `Never -> invalid_arg err_promise_set
 | `Alias _ -> assert false
-
 
 (* Future queues *)
 
@@ -631,7 +630,6 @@ module Ops = struct
   let (>>=) = bind
   let (|>) x y = failwith "TODO"
 end
-
 
 (*---------------------------------------------------------------------------
    Copyright (c) 2012 Daniel C. Bünzli

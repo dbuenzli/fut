@@ -13,13 +13,11 @@
 
     {{!promises}Promises} determine the value of futures cooperatively
     while {{!queues}future queues} determine the value of blocking or
-    long running function applications with a set of system threads
-    and act as a mutual exclusion synchronization primitive.
+    long running function applications with a set of concurrent
+    workers and act as a mutual exclusion synchronization primitive.
 
-    The separate {!Futu} library wraps [Unix] non-blocking calls as
-    futures, abstracting away the underlying IO multiplexing
-    mechanism. It also provides functions to handle [Unix] blocking
-    calls and their errors.
+    The separate {!Futu} library exposes {!Unix} system calls as
+    futures. 
 
     Consult the {{!basics}basics}, the {{!semantics}semantics} 
     and {{!examples}examples}. 
@@ -177,11 +175,6 @@ val abort : 'a t -> 'a t
     {- \[[f]\]{_t'} [= `Never] with t' > ta, if \[[f]\]{_ta} = [`Undet]
     where [ta] is [abort]'s application time.}} *)
 
-val link : 'a t -> ('a -> 'b t) -> 'b t
-(** [link f fn] is like {!Fut.bind} except that if it is aborted
-    before [f] determined then [f] is also aborted. *)
-
-
 val pick : 'a t -> 'a t -> 'a t
 (** [pick f f'] is a future that determines as the first future 
     that does and sets the other to never determine.
@@ -199,10 +192,19 @@ val pick : 'a t -> 'a t -> 'a t
     }
     {- If \[[f]\]{_t} = \[[f']\]{_t} [= `Never] then 
     \[[pick f f']\]{_t} [= `Never]}}
+
+    TODO work out the semantics to see if it is equal to 
+{[
+  first f f' >>= fun (v, f) -> ignore (abort f); ret v
+]}
 *)
 
 val pickl : 'a t list -> 'a t
 (** [pickl fs] is [List.fold_left Fut.pick (Fut.never ()) fs]. *)
+
+val link : 'a t -> ('a -> 'b t) -> 'b t
+(** [link f fn] is a future that acts like {!Fut.bind} except that 
+    if it is aborted before [f] determined then [f] will abort aswell. *)
 
 (** {1:promises Promises} *)
 
@@ -244,13 +246,13 @@ module Queue : sig
   type t = queue
   (** See {!queue}. *)
 
+  val concurrent : queue
+  (** [concurrent] is a special future queue. Applications added to it
+      are all executed concurrently, the FIFO order is not guaranteed. *)
+
   val create : ?label:string -> unit -> queue
   (** [queue ~label ()] is a new queue with the given [label], if unspecified
       a label is automatically generated. *)
-
-  val concurrent : queue
-  (** [concurrent] is a special future queue. Applications added to it
-      are all executed concurrently. *)
 
   val label : queue -> string
   (** [queue_label q] is [q]'s label. *)
@@ -269,14 +271,17 @@ val apply : ?queue:queue -> ?abort:bool ref -> ('a -> 'b) -> 'a -> 'b t
     however these exceptions are reported to the exception trap specified
     with {!Runtime.set_exn_trap}. 
 
-    {b Note.} If your program is not multi-threaded yet, it will 
-    become at that point. 
-
-    {b Warning.} The future won't determine if {!await} is not 
-    called regularly. *)
+    {b Warning.} 
+    {ul 
+    {- [fn] is executed on another thread and as such it must 
+       respect Fut's {{!futandthreads}thread safety rule}.}
+    {- The future won't determine if {!await} is not 
+       called regularly.}
+    {- If your program is not multi-threaded yet, it will 
+       become at that point.}} *)
 
 exception Never
-(** [Never] is raised by a function application in a queue to set
+(** [Never] can be raised by a function application in a queue to set
     its corresponding future to never determine. *)
 
 (** {1:timers Timers} 
@@ -423,8 +428,9 @@ end
     [time_to_revolt] does.
 {[
 let time_to_revolt = Fut.tick 1.871 in
-let revolt = Fut.bind time_to_revolt 
-  (fun `Tick -> Fut.apply Printf.printf "Revolt!")
+let revolt = 
+  Fut.bind time_to_revolt 
+    (fun () -> Fut.apply Printf.printf "Revolt!")
 
 let () = ignore (Fut.await revolt)   
 ]}
@@ -439,8 +445,6 @@ let () = ignore (Fut.await revolt)
 
     If the state of a future [f] is [`Det] or [`Never] we say that
     the future is {e set}.
-
-    TODO note non-blocking.
     
     The module {!Fut.Ops} defines a few infix operators to make the code more 
     readable. For example the {!Ops.(>>=)} operator can be used for
@@ -450,9 +454,9 @@ open Fut.Ops;;
 
 let time_to_revolt d = Fut.tick d in
 let revolt =
-  time_to_revolt 1.871              >>= fun `Tick ->
+  time_to_revolt 1.871              >>= fun () ->
   Fut.apply Printf.printf "Revolt!" >>= fun () -> 
-  time_to_revolt 0.72               >>= fun `Tick -> 
+  time_to_revolt 0.72               >>= fun () -> 
   Fut.apply Printf.printf "Again!"
 
 let () = ignore (Fut.await revolt)
@@ -500,42 +504,80 @@ let () = ignore (Fut.await revolt)
     If the computation to determine a future's value raises an
     exception it is set to [`Never] determine and the exception is
     logged by the runtime system to the handler provided by
-    {!Runtime.set_exn_trap} (default does nothing). An exception to
-    this behaviour is the {!Never} exception which makes a future
-    never determine without having the exception logged.
+    {!Runtime.set_exn_trap}. The default handler is backend dependent
+    but usually logs the exception on [stderr].
 
-    
-    It should be considered bad style to rely on the fact that
-    exceptions are automatically trapped by the system. This mechanism
-    is in place so that {e unexpected} exceptions do not kill the
-    runtime system for long running programs. If you deal with a
-    library that is designed around exceptions you should catch and
-    handle them, if only to use {!Fut.never} if you wish so. For example
-    if looking up a data structure does return [Not_found] don't do that:
+    There is a single exception to this behaviour. If the exception {!Never} 
+    is raised by an application given to {!Fut.apply}, the corresponding
+    future never determines but the exception is not logged.
+
+    Do not rely on the fact that exceptions are automatically trapped
+    by the system, this mechanism is in place so that {e unexpected}
+    exceptions do not kill the runtime system for long running
+    programs. If you deal with a library that is designed around
+    exceptions you should catch and handle them, if only to use
+    {!Fut.never} if you wish so. For example if looking up a data
+    structure may return [Not_found] don't do that:
 {[
 let find k m = Fut.ret (M.find k m)
 ]}
-    This may significantly obfuscate what's happening. Explicitely handle
-    the exception:
+    This may significantly obfuscate what's happening (and won't be 
+    efficient). Explicitely handle the exception:
 {[
 let find k m = try Fut.ret (M.find k m) with Not_found -> Fut.never () 
 ]} 
-in this example using option types may anway be clearer: 
+In this example, using option types may anway be clearer: 
 {[
 let find k m = Fut.ret (try Some (M.find k m) with Not_found -> None) 
 ]}
 
-    TODO default trap logs to stderr.
-    TODO Never is only for future queues.
-
     {2:futqueues Future queues}
 
     Future queues determine long-running or blocking function
-    applications with a set of system worker threads. The FIFO
-    application order of future queues also makes them a mutual
-    exclusion synchronization primitive. 
+    applications with a set of concurrent workers usually implemented
+    as system threads. 
 
-    TODO, no [Fut] calls in applied function. 
+    A future queue determines the applications submitted to it through
+    the {!Fut.apply} function {e sequentially} and in FIFO order. This
+    property also makes them a mutual exclusion synchronization
+    primitive. Applications submitted in two different queues are
+    determined concurrently. In the following examples [f1] and [f2]
+    will be set sequentially, while [f3] will do so concurrently to
+    those.
+{[
+let q1 = Fut.Queue.create ()
+let q2 = Fut.Queue.create ()
+let f1 = Fut.apply ~queue:q1 Printf.printf "first f1"
+let f2 = Fut.apply ~queue:q1 Printf.printf "then f2" 
+let f3 = Fut.apply ~queue:q2 Printf.printf "f3 at anytime"
+]}
+    Note that the function applications are executed on another 
+    threads and as such must respect Fut's {{!futandthreads}thread safety 
+    rule}.
+
+    There is a special queue the {{!Queue.concurrent}concurrent} queue
+    which is the default argument of {!apply}. This queue has no FIFO
+    ordering constraint: anything submitted to it is determined
+    concurrently. It is useful to just apply a long-running function 
+    to avoid starving the runtime system:
+{[
+let long_work = Fut.apply long_running_function ()
+]}
+    It is also possible to provide a reference cell [abort] to {!apply}. 
+    This reference cell will be set [true] by the runtime system 
+    if the future is aborted by the runtime system. This can be used to 
+    stop the application. For example:
+{[
+let long_running_work abort = 
+  while (not !abort || !finished) do ... done 
+
+let abort = ref false 
+let long_work = Fut.apply ~abort long_running_work abort
+let _ = Fut.abort long_work (* will set abort to [true] *)
+]}
+   Note that the runtime system never reads abort it just sets it to 
+   [true] when appropriate.
+
 
     {2:promises Promises}
 
@@ -583,14 +625,18 @@ let find k m = Fut.ret (try Some (M.find k m) with Not_found -> None)
 
     In general [Unix.fork] does not cope well with threads. The best
     approach is thus to fork all the processes you need before the
-    first call to {!await}. If you plan to use future queues TODO
-
+    first call to {!await}.
 *)
 
 (** {1:examples Examples} 
 
+    {2:backend Backends}
+
+    TODO explain how to link against a backend. 
+
     {2 The universal client} 
     {2 The echo server}
+
     {2:promiseex Integration with asynchronous functions}
     
     Suppose we have a function to perform asynchronous reads on a regular
@@ -668,13 +714,6 @@ end
     You may want to use futures to delegate work to other processes.
 
     {2:signals Integration with signals} 
-
-    {2:backend Other backends}
-
-    For now [Fut] supports only a backend based on [select(2)]. New
-    backends may be written and added with {!Runtime.set_backend}. 
-    Note that changing backend while values are determined in 
-    future queues is unsupported.
         
 *)
     

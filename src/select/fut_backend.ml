@@ -33,7 +33,6 @@ module Sigmap = struct
     add s acts m
 end
 
-
 (* FIXME. This should be a monotonic clock, gettimeofday () can run 
    backwards. Use:
    - mach_absolute_time () on macosx.
@@ -57,72 +56,72 @@ end = struct
     { time : float;                           (* absolute POSIX fire time. *)
       mutable action : (unit -> unit) option }                  (* action. *)
     
-    type t =                                           (* heaps for actions. *)
-      { mutable heap : action array;
-        mutable max : int; }
+  type t =                                           (* heaps for actions. *)
+    { mutable heap : action array;
+      mutable max : int; }
+    
+  let init_size = 256
+  let farthest = { time = max_float; action = None }  (* greater than any. *)
+  let create ?(size = init_size) () = 
+    { heap = Array.make size farthest; max = -1; }
+    
+  let grow h =                                     
+    let len = h.max + 1 in
+    let heap' = Array.make (2 * len) farthest in
+    Array.blit h.heap 0 heap' 0 len; h.heap <- heap'
       
-    let init_size = 256
-    let farthest = { time = max_float; action = None }  (* greater than any. *)
-    let create ?(size = init_size) () = 
-      { heap = Array.make size farthest; max = -1; }
-
-    let grow h =                                     
-      let len = h.max + 1 in
-      let heap' = Array.make (2 * len) farthest in
-      Array.blit h.heap 0 heap' 0 len; h.heap <- heap'
+  let shrink_threshold = 262144
+  let shrink h =                                   (* assert (h.max < 0). *)
+    if Array.length h.heap < shrink_threshold then () else
+    h.heap <- Array.make init_size farthest
         
-    let shrink_threshold = 262144
-    let shrink h =                                   (* assert (h.max < 0). *)
-      if Array.length h.heap < shrink_threshold then () else
-      h.heap <- Array.make init_size farthest
-          
-    let compare heap i i' = compare heap.(i).time heap.(i').time      
-    let swap heap i i' = 
-      let v = heap.(i) in heap.(i) <- heap.(i'); heap.(i') <- v
-        
-    let rec up heap i =
-      if i = 0 then () else
-      let p = (i - 1) / 2 in                                (* parent index. *)
-      if compare heap i p < 0 then (swap heap i p; up heap p)
-                                   
-    let rec down heap max i =
-      let start = 2 * i in
-      let l = start + 1 in                              (* left child index. *) 
-      let r = start + 2 in                             (* right child index. *)
-      if l > max then () (* no child, stop *) else (* find smallest child k. *)
-      let k = if r > max then l else (if compare heap l r < 0 then l else r) in
-      if compare heap i k > 0 then (swap heap i k; down heap max k)
-                                   
-    let add_action h time a =
-      let max = h.max + 1 in 
-      if max = Array.length h.heap then grow h;
-      let t = { time; action = Some a } in
-      let cancel () = t.action <- None in
-      h.heap.(max) <- t; h.max <- max; up h.heap max; cancel
+  let compare heap i i' = compare heap.(i).time heap.(i').time      
+  let swap heap i i' = 
+    let v = heap.(i) in heap.(i) <- heap.(i'); heap.(i') <- v
       
-    let pop h =                                   (* assert not (h.max < 0). *)
-      let last = h.heap.(h.max) in
-      h.heap.(h.max) <- farthest;
-      h.max <- h.max - 1; 
-      if h.max < 0 then () else (h.heap.(0) <- last; down h.heap h.max 0)
-                                
-    let rec expired h =
-      let rec loop now = 
-        if h.max < 0 then (shrink h; None) else
-        if h.heap.(0).action = None then (pop h; loop now) else
-        if h.heap.(0).time > now then None else
-        let action = h.heap.(0).action in
-        (pop h; action)
-      in
-      loop (now ())
-        
-    let deadline h = 
-      let rec loop now = 
-        if h.max < 0 then None else
-        if h.heap.(0).action = None then (pop h; loop now) else 
-        Some (h.heap.(0).time -. now)
-      in
-      loop (now ())
+  let rec up heap i =
+    if i = 0 then () else
+    let p = (i - 1) / 2 in                                (* parent index. *)
+    if compare heap i p < 0 then (swap heap i p; up heap p)
+                                 
+  let rec down heap max i =
+    let start = 2 * i in
+    let l = start + 1 in                              (* left child index. *) 
+    let r = start + 2 in                             (* right child index. *)
+    if l > max then () (* no child, stop *) else (* find smallest child k. *)
+    let k = if r > max then l else (if compare heap l r < 0 then l else r) in
+    if compare heap i k > 0 then (swap heap i k; down heap max k)
+                                 
+  let add_action h time a =
+    let max = h.max + 1 in 
+    if max = Array.length h.heap then grow h;
+    let t = { time; action = Some a } in
+    let cancel () = t.action <- None in
+    h.heap.(max) <- t; h.max <- max; up h.heap max; cancel
+    
+  let pop h =                                   (* assert not (h.max < 0). *)
+    let last = h.heap.(h.max) in
+    h.heap.(h.max) <- farthest;
+    h.max <- h.max - 1; 
+    if h.max < 0 then () else (h.heap.(0) <- last; down h.heap h.max 0)
+                              
+  let rec expired h =
+    let rec loop now = 
+      if h.max < 0 then (shrink h; None) else
+      if h.heap.(0).action = None then (pop h; loop now) else
+      if h.heap.(0).time > now then None else
+      let action = h.heap.(0).action in
+      (pop h; action)
+    in
+    loop (now ())
+      
+  let deadline h = 
+    let rec loop now = 
+      if h.max < 0 then None else
+      if h.heap.(0).action = None then (pop h; loop now) else 
+      Some (h.heap.(0).time -. now)
+    in
+    loop (now ())
 end 
 
 (* Runtime globals *)
@@ -270,7 +269,7 @@ let step ~timeout =
   exec_timer_actions ();
   exec_runtime_actions ();
   now () -. start 
-
+  
 
 module Queue = struct               (* work queues over a pool of threads. *)
   type t =
@@ -347,7 +346,7 @@ module Queue = struct               (* work queues over a pool of threads. *)
         wakeup_workers () (* to kill some *)
     in
     with_scheduler aux count
-        
+      
   let ensure_worker () = 
     if !workers = 0 then set_worker_count default_worker_count
 end

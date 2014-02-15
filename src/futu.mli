@@ -7,7 +7,8 @@
 (** Unix system calls as futures. 
 
     This module wraps {!Unix} system calls that support asynchronous
-    operation and a few other as futures.
+    operation and a few other as futures abstracting 
+    away the underylying IO multiplexing mechanism. 
 
     For other blocking [Unix] system calls you can invoke them with
     {!Unix.apply} which uses {{!queues}future queues} to perform the
@@ -16,8 +17,7 @@
     
     {b Important.} File descriptors created outside this module
     must be set to non-blocking mode with {!Unix.set_nonblock}
-    before they are used with functions of this module.
-*)
+    before they are used with functions of this module. *)
 
 
 (** {1 Unix results and errors} *)
