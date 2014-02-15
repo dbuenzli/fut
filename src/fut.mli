@@ -286,38 +286,41 @@ exception Never
 
 (** {1:timers Timers} 
 
-    Timer determine values at specific points in time.
+    Timer futures determine values after a specific amount of time has 
+    passed.
 
     {b Warning.} These futures don't determine if {!await} is not
-    called regularly.
-*)
+    called regularly. *)
+
+val delay : float -> float t
+(** [delay d] is a value that determines [diff = d - d'] in [d] seconds where 
+    [d'] is the actual time the runtime system took to determine the timer.
+    If [diff] is [0.] the timer was on time, if positive the delay 
+    was early and if negative it was late. 
+    {ul
+    {- \[[delay d]\]{_ta+d'} [= `Det (d-d')] where [ta] is 
+       [delay]'s application time and [d'] is determined by 
+       the runtime system (but should be as near as possible
+       from [d]).}} *)
 
 val tick : float -> unit t
-(** [tick d] is a value that determines [()] in [d] seconds.
-    {ul
-    {- \[[tick d]\]{_ta+d} [= `Det ()] where [ta] is 
-       [tick]'s application time}} *)
-
-val delay : float -> (float -> float -> 'a) -> 'a t
-(** [delay d fn] is like {!tick} except it determines the value 
-    [fn d d'] where [d'] is the delay that was actually performed 
-    by the runtime sytem. *)
+(** [tick d] is {!ignore} [(]{!delay} [d)]. *)
 
 val timeout : float -> 'a t -> [> `Timeout | `Ok of 'a ] t
 (** [timeout d f] is a value that determines [`Ok v] if [f]
     determines with [v] before [d] seconds. In any other case 
-    it determines with [`Timeout] after [d] seconds and aborts [f] if
-    it is still undetermined.
+    it determines with [`Timeout] after [d] seconds and aborts 
+    [f] if it is still undetermined.
     {ul 
-     {- \[[timeout d f]\]{_ta + d} [= `Det (`Ok v)] 
+     {- TODO REDO \[[timeout d f]\]{_ta + d} [= `Det (`Ok v)] 
         if there is [t < ta + d] with \[[f]\]{_t} [= `Det v] where
         [ta] is [timeout]'s application time.}
-     {- [timeout d f]\]{_ta + d} [= `Det `Timeout] and
+     {- TODO REDO \[[timeout d f]\]{_ta + d} [= `Det `Timeout] and
         \[[f]\]{_ta + d} [= `Never] otherwise.}}
-    Can be seen as a short hand for
+    This is a shorthand for:
 {[
-    Fut.pick (Fut.link (fun v -> ret (`Ok v)) f) 
-             (Fut.link (fun () -> ret `Timeout) Fut.tick abs d)
+    Fut.pick (Fut.map (fun v -> ret (`Ok v)) f)
+             (Fut.map (fun () -> ret `Timeout) (Fut.tick d))
 ]}
 *)
 
@@ -379,7 +382,18 @@ module Runtime : sig
       {b Note.} Calling this function explicitely with [n > 0] makes the 
       program multithreaded. *)
   
-  (** {1 Runtime actions} *)
+  (** {1 Actions} *)
+
+  type abort = unit -> unit 
+  (** The type for action's abort functions. Calling an abort function 
+      associated to an [action] function {b must} have the following
+      effects:
+      {ul 
+      {- If [action] wasn't executed yet. It guarantees that 
+         [action] will never be called and will be eventually gc'd.}
+      {- If [action] was already executed, it has no effects.}} *)
+
+  (** {2 Runtime actions} *) 
 
   val action : (unit -> unit) -> unit
   (** [action a] executes [a ()] as soon as possible on the runtime system
@@ -387,28 +401,26 @@ module Runtime : sig
 
       {b Note.} This function can be called from other threads. *)
 
-  (** {1 Signal actions} *)
+  (** {2 Signal actions} *)
 
   val signal_action : int -> (unit -> unit) -> unit
   (** [signal_action s a] executes [a ()] whenever signal [s] is received. *)
 
-  (** {1 Timer actions} *)
+  (** {2 Timer actions} *)
 
   val deadline : unit -> float option 
   (** [deadline ()] is the duration to the next timer action
       (if any). If the duration is negative, the runtime
       system is late. *)
 
-  val timer_action : float -> (unit -> unit) -> (unit -> unit)
-  (** [timer_action t a] executes [a ()] at time [t] where [t] is
-      interpreted as an absolute time in POSIX seconds since
-      1970-01-01 00:00:00 UTC. If [t] is earlier than the current
-      time it must be executed at some point, but not immediatly. 
-      
-      TODO change semantics t should be a delay from now. 
-*)
+  val timer_action : float -> (abort -> (float -> unit) * 'a) -> 'a
+  (** [timer_action d def] calls [def] with an [abort] function to 
+      get [(action,v)]. The function [action] is scheduled for execution 
+      in [d] seconds and will be called once with the actualy delay that 
+      was performed or never if [abort] was called before, see {!abort}.
+      The value [v] is simply returned by [timer_action]. *)
 
-  (** {1 File descriptor actions and closing} *)
+  (** {2 File descriptor actions and closing} *)
                                                 
   val fd_action : [ `R | `W ] -> Unix.file_descr -> (bool -> unit) -> unit
   (** [fd_action fds fd a] executes [a true] whenever [fd] is in the

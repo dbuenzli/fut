@@ -4,6 +4,22 @@
    %%NAME%% version %%VERSION%%
   ---------------------------------------------------------------------------*)
 
+let every_d d = 
+  let rec loop d = 
+    Fut.delay d >>= fun diff -> loop (d +. diff) 
+  in
+  loop d
+
+let every_d' d = (* avoids fp error accumulation (are you sure ?) *) 
+  let rec loop t d =
+    Fut.delay d >>= fun diff ->
+    let t = t +. d -. diff in
+    let next = ceil (t /. d.) * d. in 
+    loop (next - t.) 
+  in
+  loop 0. d
+
+
    
 (* Some tests for rtime, uses the unix timeline defined in examples.ml.
    

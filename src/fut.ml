@@ -213,6 +213,7 @@ let set_abort f fn = match f.state with
 
 let undet_state abort = { ws = Empty; ws_adds = 0; stop_wait = nop; abort } 
 let undet () = { state = `Undet (undet_state nop) }
+let undet_abort abort = { state = `Undet (undet_state abort) }
 let never () = { state = `Never } 
 
 let trap_fut fn v = try fn v with
@@ -532,7 +533,7 @@ let link f = failwith "TODO"
 (* Promises *)
 
 type 'a promise = 'a t                         (* the promise is the future. *)
-let promise ?(abort = nop) () = { state = `Undet (undet_state abort) }
+let promise ?(abort = nop) () = undet_abort abort
 let future p = p
 let set p s = match (src p).state with 
 | `Undet ws -> fset p s
@@ -567,68 +568,28 @@ let apply ?(queue = Queue.concurrent) ?abort f v =
 
 (* Timers *)
 
-let tick d = failwith "TODO"
-(*
-  let res = undet () in
-  let a () = fset res (`Det ()) in
-  Runtime.timer_action d a; 
-  res
-  *)
-  
-let delay d fn = failwith "TODO"
-(*
-  let now = Unix.gettimeofday () in 
-  let t = if abs then d else now +. d in 
-  if t <= now then 
-    let d, d' = if abs then (t, now) else (d, now -. t) in
-    { state = trap_det (fn d) d' }
-  else 
-    let res = undet () in 
-    let a () = 
-      let now' = Unix.gettimeofday () in
-      let d, d' = if abs then (t, now') else (d, now' -. t) in
-      fset res (trap_det (fn d) d')
-    in
-    let _ = Runtime.timer_action t a in
-    res
-*)
+let delay d =
+  let def abort =
+    let fnew = undet_abort abort in 
+    (fun diff -> fset fnew (`Det diff)), fnew
+  in
+  Runtime.timer_action d def 
 
-let timeout d f = failwith "TODO"
-(*
-  let f = src f in 
-  match f.state with 
-  | `Never -> never () 
-  | `Det v -> ret (`Ok v)
-  | `Undet u -> 
-      let now = Unix.gettimeofday () in 
-      let t = if abs then d else now +. d in
-      if t <= now then (fabort f u; ret `Timeout) else 
-      let res = undet () in
-      let timeout () = 
-        let f = src f in
-        begin match f.state with 
-        | `Never -> () 
-        | `Undet u -> stop_wait res; fabort f u
-        | `Alias _ | `Det _ -> assert false
-        end;
-        fset res (`Det `Timeout) 
-      in
-      let cancel_timeout = Runtime.timer_action t timeout in
-      let waiter = function 
-      | `Never -> ()
-      | `Det v -> cancel_timeout (); fset res (`Det (`Ok v))
-      in
-      let w = add_waiter u waiter in 
-      set_stop_wait res (fun () -> w := None);
-      set_abort res (fun () -> cancel_timeout ());
-      res
-  | `Alias _ -> assert false
-*)
+let tick d = 
+  let def abort =
+    let fnew = undet_abort abort in
+    (fun _ -> fset fnew (`Det ())), fnew
+  in
+  Runtime.timer_action d def
+
+let timeout d fut = (* FIXME: this should be optimized by inlining defs. *) 
+  let timeout = map (fun () -> `Timeout) (tick d) in
+  let fut = map (fun v -> `Ok v) fut in 
+  pick fut timeout 
 
 let ( >>= ) = bind
 module Ops = struct
   let (>>=) = bind
-  let (|>) x y = failwith "TODO"
 end
 
 (*---------------------------------------------------------------------------

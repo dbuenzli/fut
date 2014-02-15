@@ -38,11 +38,14 @@ end
    - mach_absolute_time () on macosx.
    - clock_gettime(CLOCK_MONOTONIC,t) on linux
    - QueryPerformanceCounter() on windows. *)
+
 let now = Unix.gettimeofday 
   
 module Timeline : sig
   type t
-  val add_action : t -> float -> (unit -> unit) -> (unit -> unit)
+   
+  val add_action : t -> float -> 
+    (Fut_backend_base.abort -> (float -> unit) * 'a) -> 'a
   val deadline : t -> float option   (* next deadline in seconds. *)
   val expired : t -> (unit -> unit) option
   val create : ?size:int -> unit -> t
@@ -54,7 +57,7 @@ end = struct
   
   type action =                                 (* action on the timeline. *)
     { time : float;                           (* absolute POSIX fire time. *)
-      mutable action : (unit -> unit) option }                  (* action. *)
+      mutable action : (float -> unit) option }                 (* action. *)
     
   type t =                                           (* heaps for actions. *)
     { mutable heap : action array;
@@ -92,12 +95,16 @@ end = struct
     let k = if r > max then l else (if compare heap l r < 0 then l else r) in
     if compare heap i k > 0 then (swap heap i k; down heap max k)
                                  
-  let add_action h time a =
+  let add_action h d def =
     let max = h.max + 1 in 
     if max = Array.length h.heap then grow h;
-    let t = { time; action = Some a } in
-    let cancel () = t.action <- None in
-    h.heap.(max) <- t; h.max <- max; up h.heap max; cancel
+    let time = now () +. d in
+    let t = { time; action = None } in
+    let abort () = t.action <- None in
+    let action, v = def abort in 
+    t.action <- Some action;
+    h.heap.(max) <- t; h.max <- max; up h.heap max; 
+    v
     
   let pop h =                                   (* assert not (h.max < 0). *)
     let last = h.heap.(h.max) in
@@ -108,10 +115,13 @@ end = struct
   let rec expired h =
     let rec loop now = 
       if h.max < 0 then (shrink h; None) else
-      if h.heap.(0).action = None then (pop h; loop now) else
-      if h.heap.(0).time > now then None else
       let action = h.heap.(0).action in
-      (pop h; action)
+      if action = None then (pop h; loop now) else
+      let time = h.heap.(0).time in 
+      if  time > now then None else
+      (* FIXME: that closure could be avoided, redesign timeline. *) 
+      let action = match action with None -> assert false | Some a -> a in
+      (pop h; Some (fun () -> action (now -. time)))
     in
     loop (now ())
       
@@ -132,7 +142,7 @@ let timeline = ref (Timeline.create ~size:0 ())
 let start_timer_actions () = timeline := Timeline.create ()
 let stop_timer_actions () = timeline := Timeline.create ~size:0 ()
 let deadline () = Timeline.deadline (!timeline)
-let timer_action t a = Timeline.add_action (!timeline) t a
+let timer_action t def = Timeline.add_action (!timeline) t def
 let rec exec_timer_actions () = match Timeline.expired (!timeline) with
 | Some a -> Fut_backend_base.trap `Timer_action a (); exec_timer_actions ()
 | None -> ()

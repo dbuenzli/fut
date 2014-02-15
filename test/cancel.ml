@@ -3,10 +3,15 @@ open Fut.Ops;;
 
 let log f = Format.printf (f ^^ "@?") 
 let str = Format.sprintf 
+let () = Random.self_init () 
 
 let string_of_file : string -> string Fut.t = 
   let count = ref 0 in
-  fun file -> incr count; Fut.ret (str "%d" !count)
+  fun file -> incr count; 
+    let d = 3. +. Random.float 4. in
+    Printf.printf "%g\n" d;
+    Fut.tick d >>= fun () ->             (* simulate taking time. *) 
+    Fut.ret (str "%d time:%g" !count d)
 (* fun file ->
   let len = 65535 in
   let buf = String.create len in
@@ -32,9 +37,7 @@ let files =
 
 let stop = 
   let cancel = Futu.signal Sys.sigusr1 >>= fun _ -> Fut.ret `Cancel in
-  let timeout : [> `Timeout ] Fut.t = Fut.(future (promise ())) 
-  (* Fut.(tick 10. >>= fun () -> ret `Timeout) *)
-  in
+  let timeout = Fut.(tick 4. >>= fun () -> ret `Timeout) in
   Fut.map (fun v -> `Stop v) (Fut.pick cancel timeout)
 
 
@@ -56,7 +59,7 @@ let () =
   | `Undet -> assert false 
   | `Det d -> 
       match d with 
-      | `Timeout, ps -> log "Timed out, processed: %d" (List.length files)
-      | `Cancel, ps -> log "Cancelled, processed: %d" (List.length files)
+      | `Timeout, ps -> log "Timed out, processed: %d" (List.length ps)
+      | `Cancel, ps -> log "Cancelled, processed: %d" (List.length ps)
       | `Done, ps -> log "All done" 
  

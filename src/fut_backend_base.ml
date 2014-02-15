@@ -64,38 +64,29 @@ let queue_auto_label =
 
 (* Backend interface *) 
 
+type abort = unit -> unit
+
 module type Backend = sig 
-
-  (** {1 Runtime} *) 
-
   val name : string
   val start : unit -> unit
   val stop : unit -> unit
   val action : (unit -> unit) -> unit
   val signal_action : int -> (unit -> unit) -> unit
   val deadline : unit -> float option
-  val timer_action : float -> (unit -> unit) -> (unit -> unit)
+  val timer_action : float -> (abort -> (float -> unit) * 'a) -> 'a
   val fd_action : [`R | `W] -> Unix.file_descr -> (bool -> unit) -> unit
   val fd_close : Unix.file_descr -> unit
-  val step : timeout:float -> float  
-  (** [timeout] is guaranteed to be equal or greater than [0.], if it is 
-      equal to max_float, means unbounded wait. *)
-    
-  (** {1 Queues} *) 
-    
+  val step : timeout:float -> float
+
   module Queue : sig
     type t 
     val concurrent : t 
     val create : ?label:string -> unit -> t 
     val label : t -> string
-    val add_work : t -> (unit -> unit) -> unit
-      
-    (** {1 Workers} *) 
-      
+    val add_work : t -> (unit -> unit) -> unit      
     val worker_count : unit -> int 
     val set_worker_count : int -> unit 
     val ensure_worker : unit -> unit 
-      
   end
 end
 

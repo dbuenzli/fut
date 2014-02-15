@@ -6,7 +6,8 @@
 
 (** Fut backend base module. 
 
-    Handles the exception trap and defines the backend signature. *)
+    Implements the exception trap and defines backend tools and signatures. *)
+
 
 (** {1 Exception trap} *) 
 
@@ -35,17 +36,22 @@ val trap : exn_ctx -> ('a -> unit) -> 'a -> unit
 (** [trap ctx f x] executes [f x] and if it raises traps the exception 
     with context [ctx]. *)
 
-(** {1 Queues} *) 
+(** {1 Backend tools} *)
+
+(** {2 Queues} *) 
 
 val queue_auto_label : unit -> string 
 (** [queue_auto_label ()] is a new label for a queue. *)
 
 (** {1 Backend interface} *) 
 
+type abort = unit -> unit 
+(** See {!Fut.Runtime.abort}. *)
+
 (** Fut backend interface. 
 
     {b Note.} While the Unix module interface is needed to compile
-    backends, there's no need to {b link} against it. *) 
+       backends, there's no need to {b link} against it. *) 
 module type Backend = sig 
 
   (** {1 Runtime} *) 
@@ -53,10 +59,25 @@ module type Backend = sig
   val name : string
   val start : unit -> unit
   val stop : unit -> unit
+
+  (** {1 Actions} *) 
+
   val action : (unit -> unit) -> unit
+
+  (** {2 Signal actions} *) 
+
   val signal_action : int -> (unit -> unit) -> unit
+
+  (** {2 Timer actions} *) 
+
   val deadline : unit -> float option
-  val timer_action : float -> (unit -> unit) -> (unit -> unit)
+  (** See {!Fut.Runtime.deadline} *) 
+
+  val timer_action : float -> (abort -> (float -> unit) * 'a) -> 'a 
+  (** See {!Fut.Runtime.timer_action}. *)   
+
+  (** {2 File descriptor actions} *) 
+
   val fd_action : [`R | `W] -> Unix.file_descr -> (bool -> unit) -> unit
   val fd_close : Unix.file_descr -> unit
   val step : timeout:float -> float  
