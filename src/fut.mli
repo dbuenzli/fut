@@ -38,7 +38,7 @@ type 'a state = [ `Never | `Undet | `Det of 'a ]
 val state : 'a t -> 'a state
 (** [state f] is the current state of [f]. 
 
-    {b Note.} This function can be called by other threads. *)
+    {b Thread-safe.} This function can be called by other threads. *)
 
 val await : ?timeout:float -> 'a t -> 'a state
 (** [await timeout f], is like {!state} except if [f] is undetermined
@@ -315,24 +315,6 @@ val delay : float -> float t
 val tick : float -> unit t
 (** [tick d] is {!ignore} [(]{!delay} [d)]. *)
 
-val timeout : float -> 'a t -> [> `Timeout | `Ok of 'a ] t
-(** [timeout d f] is a value that determines [`Ok v] if [f]
-    determines with [v] before [d] seconds. In any other case 
-    it determines with [`Timeout] after [d] seconds and aborts 
-    [f] if it is still undetermined.
-    {ul 
-     {- TODO REDO \[[timeout d f]\]{_ta + d} [= `Det (`Ok v)] 
-        if there is [t < ta + d] with \[[f]\]{_t} [= `Det v] where
-        [ta] is [timeout]'s application time.}
-     {- TODO REDO \[[timeout d f]\]{_ta + d} [= `Det `Timeout] and
-        \[[f]\]{_ta + d} [= `Never] otherwise.}}
-    This is a shorthand for:
-{[
-    Fut.pick (Fut.map (fun v -> ret (`Ok v)) f)
-             (Fut.map (fun () -> ret `Timeout) (Fut.tick d))
-]}
-*)
-
 (** {1 Infix operators} 
 
     Use of these operators may kill a few parentheses. *)
@@ -379,7 +361,8 @@ module Runtime : sig
   
   (** {1 Workers} 
 
-      {b Note.} Usually a worker corresponds to a system thread. *)
+      {b Note.} Usually a worker corresponds to a system thread, but 
+      the exact semantics is left to the backend. *)
     
   val worker_count : unit -> int 
   (** [thread_count] is the number of workers used for future queues. *)
@@ -408,7 +391,7 @@ module Runtime : sig
   (** [action a] executes [a ()] as soon as possible on the runtime system
       thread. Actions are executed in FIFO order as received. 
 
-      {b Note.} This function can be called from other threads. *)
+      {b Thread-safe.} This function can be called from other threads. *)
 
   (** {2 Signal actions} *)
 

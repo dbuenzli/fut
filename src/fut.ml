@@ -701,8 +701,9 @@ let pickl futs = (* FIXME implement directly *)
 (* Promises *)
 
 type 'a promise = 'a t                        (* The promise is the future ! *)
+
 let promise ?(abort = nop) () = undet_abort abort
-let future p = p
+let future promise = promise
 let set promise set = 
   let promise = src promise in
   match promise.state with
@@ -755,11 +756,6 @@ let tick d =
     (fun _ -> fut_det fnew (`Det ())), fnew
   in
   Runtime.timer_action d def
-
-let timeout d fut =   (* FIXME: this should be optimized by inlining defs. *) 
-  let timeout = map (fun () -> `Timeout) (tick d) in
-  let fut = map (fun v -> `Ok v) fut in 
-  pick fut timeout 
 
 let ( >>= ) = bind           (* we have it here aswell for Fut.() notation. *) 
 module Ops = struct
