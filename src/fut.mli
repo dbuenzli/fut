@@ -152,13 +152,13 @@ val firstl : 'a t list -> ('a * 'a t list) t
 (** {2:effectful Effectful combinators} 
 
     These combinators may set their [`Undet]ermined arguments to
-    [`Never], aborting their determination. 
+    [`Never] and abort their determination.
 
-    {b Important.} When a future is aborted, only that future is
-    affected and set to never determine. It doesn't affect the
-    determination of futures it may be waiting on. Also, aborting an a
-    future that is set has no effect since once the future is set it
-    never changes again.
+    {b Important.} When a future is aborted, it is set to never 
+    determine and all the future it may be waiting on (and
+    recursively) are also aborted, except those that are protected
+    by {!protect}. Aborting a future that is set has no effect since
+    once the future is set it never changes again. 
 
     {b Warning.}  If the aborted future is an [`Undet]ermined future from 
     a future queue, there's no guarantee that the corresponding application
@@ -167,18 +167,27 @@ val firstl : 'a t list -> ('a * 'a t list) t
     to [`Never] and remain so forever but depending on what the 
     function application does, the world may be affected. *)
 
-val abort : 'a t -> 'a t
-(** [abort f] is a future that never determines. If [f] was [`Undet]ermined
-    at application time, it is set to never determine. 
+val abort : 'a t -> unit
+(** [abort f] aborts the future [f]. If [f] was [`Undet]ermined
+    at application time, it is set to never determine and all the
+    futures it is waiting on are also aborted.  
     {ul
-    {- \[[abort f]\]{_t} [= `Never]}
     {- \[[f]\]{_t'} [= `Never] with t' > ta, if \[[f]\]{_ta} = [`Undet]
-    where [ta] is [abort]'s application time.}} *)
+    where [ta] is [abort]'s application time.}}
+    TODO semantics we need to define a waits(f) that is the set of of futures 
+    [f] waits on. *)
+
+val protect : 'a t -> 'a t 
+(** [protect f] is a future that behaves like [f] but is insensitive 
+    to {!abort}. It may of course still never determine because of its
+    definition but its dependents are not able to abort it. [f] of 
+    course remains abortable. *)
 
 val pick : 'a t -> 'a t -> 'a t
 (** [pick f f'] is a future that determines as the first future 
     that does and sets the other to never determine.
-    If both future are already determined the left one is taken. 
+    If both futures are already determined the left one is taken. 
+    If both futures never determine, the future never determines.
     {ul
     {- If \[[f]\]{_t} [= `Det v] then
      {ul 
@@ -202,9 +211,6 @@ val pick : 'a t -> 'a t -> 'a t
 val pickl : 'a t list -> 'a t
 (** [pickl fs] is [List.fold_left Fut.pick (Fut.never ()) fs]. *)
 
-val link : 'a t -> ('a -> 'b t) -> 'b t
-(** [link f fn] is a future that acts like {!Fut.bind} except that 
-    if it is aborted before [f] determined then [f] will abort aswell. *)
 
 (** {1:promises Promises} *)
 
@@ -216,14 +222,16 @@ val promise : ?abort:(unit -> unit) -> unit -> 'a promise
 (** [promise abort ()] is a new promise. [abort] is called if the
     future of the promise is set to never determine via {!set} or
     an {{!effectful}effectful combinator}. Once the future is set
-    [abort] is eventually garbage collected. 
+    [abort] is eventually garbage collected. If you want to call 
+    a function whenever the future of the promise is set, use 
+    {!finally} on the future.
     
-    {b Note.} This function can be called from other threads. *)
+    {b Thread-safe.} This function can be called from other threads. *)
 
 val future : 'a promise -> 'a t
 (** [future p] is the future set by promise [p]. 
 
-    {b Note.} This function can be called from other threads. *)
+    {b Thread-safe.} This function can be called from other threads. *)
 
 val set : 'a promise -> [`Det of 'a | `Never ] -> unit
 (** [set p s] sets {!future} [p] to [s]. Does nothing if the 

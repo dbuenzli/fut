@@ -43,7 +43,8 @@ let vouillon_loop () =
   is_undet l; run (); is_det l 0
 
 (* Picking, here the waiters of [fut] may grow unbound, if there is
-   no provision for compacting aborted waiters. *)
+   no provision for compacting aborted waiters. 
+   TODO redo, this changed because of the abort semantic change *)
 
 let pick_loop () = 
   log "* Test pick loop\n";
@@ -53,7 +54,7 @@ let pick_loop () =
     Fut.pick (Fut.map succ fut) (Fut.ret (pred n)) >>= loop
   in
   let l = loop 200_000_000 in 
-  is_undet fut; is_det l 0
+  is_never fut; is_det l 0
 
 let suite () =
   log "Testing leaks (witness constant memory usage with top)\n";

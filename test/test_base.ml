@@ -400,14 +400,12 @@ let firstl () =
 
 let abort () = 
   log "* Test abort\n"; 
-  is_never (Fut.abort (Fut.ret 3)); 
-  is_never (Fut.abort (Fut.ret 3)); 
+  Fut.abort (Fut.ret 3);
+  Fut.abort (Fut.ret 3);
   let () = 
     let fv1, pv1 = promise () in 
-    is_undet fv1; is_never (Fut.abort fv1); 
-    begin try Fut.set pv1 (`Det 3); fail "should raise Invalid_argument" with 
-    | Invalid_argument _ -> ()
-    end;
+    is_undet fv1; Fut.abort fv1; 
+    Fut.set pv1 (`Det 3);
     is_never fv1; 
   in
   ()

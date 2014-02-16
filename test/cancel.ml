@@ -8,8 +8,12 @@ let () = Random.self_init ()
 let string_of_file : string -> string Fut.t = 
   let count = ref 0 in
   fun file -> incr count; 
-    let d = 3. +. Random.float 4. in
-    Printf.printf "%g\n" d;
+    let d = 2. +. Random.float 3. in
+    let f = 
+      let abort () = Printf.printf "DEEP!\n" in
+      Fut.future (Fut.promise ~abort ())
+    in
+    f >>= fun () ->
     Fut.tick d >>= fun () ->             (* simulate taking time. *) 
     Fut.ret (str "%d time:%g" !count d)
 (* fun file ->
@@ -36,7 +40,10 @@ let files =
   List.rev_map slurp files 
 
 let stop = 
-  let cancel = Futu.signal Sys.sigusr1 >>= fun _ -> Fut.ret `Cancel in
+  let cancel = 
+    Futu.signal Sys.sigusr1 >>= fun _ ->
+    Fut.ret `Cancel 
+  in
   let timeout = Fut.(tick 4. >>= fun () -> ret `Timeout) in
   Fut.map (fun v -> `Stop v) (Fut.pick cancel timeout)
 
@@ -44,9 +51,9 @@ let stop =
 let consume stop files =
   let process files = Fut.map (fun v -> `Files v) files in
   let rec loop files acc = 
-    Fut.pick stop files >>= function 
-    | `Stop v -> Fut.ret (v, acc) 
-    | `Files (file, files) -> 
+    Fut.first stop files >>= function
+    | `Stop v, files -> Fut.abort (files); Fut.ret (v, acc) 
+    | `Files (file, files), _ ->
         print file >>= fun () ->
           if files = [] then Fut.ret (`Done, acc) else 
           loop (process (Fut.firstl files)) (fst file :: acc)
