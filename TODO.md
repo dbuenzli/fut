@@ -1,5 +1,7 @@
-* Is Fut.barrier really useful ? Maybe remove it and add a set 
-   argument to Fut.fold.
+* Folds 
+  Fut.fold : ?dets:bool -> ('a -> 'b -> 'a) -> 'a -> 'b t list -> 'a t
+  Fut.fold_sets : ('a -> 'b option -> 'a) -> 'a -> 'b t list -> 'a t
+ 
 * Check this bug  http://caml.inria.fr/mantis/view.php?id=5783
 * Fut.apply, queues could hold refs on options to abort if not 
   already scheduled.
@@ -10,6 +12,7 @@
 * Fut.{first,pick} should we tag with `Left | `Right maybe less 
   Fut.map's would need to be introcuded ? But then Fut.{firstl,pickl}
   wouldn't tag.
+
 * Fut.finally should we pass 'c ? 
 * Fut.determine : 'a t -> until:'b t -> [ `Abort of 'b | `Det of 'a ]
 * Fut.settle : 'a t -> until:'b t -> [ `Abort of 'b | `Never | `Det of 'a ]

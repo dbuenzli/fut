@@ -353,7 +353,10 @@ let alias internal ~src:fut =
           futu.ws <- wunion futu.ws internalu.ws;            
           futu.ws_adds <- futu.ws_adds + internalu.ws_adds; 
           wcleanup futu;
-          (* since [fut] shall behave like [internal] it gets its deps. *)
+          (* since [fut] shall behave like [internal] it gets its deps
+             and waiters. Calls to fut_{det,shallow_abort,deep_abort} in 
+             these waiters on [internal] will forward to [fut] through the 
+             aliasing mechanism (see the [src] function) *) 
           futu.deps <- futu.deps;
           (* concatenate abort actions, no abort action shall be orphaned. *)
           futu.abort <- concat_aborts futu.abort internalu.abort
@@ -540,30 +543,6 @@ let fold fn acc futs =
   | [] -> if !undet = 0 then fold ()
   in
   add_deps futs;
-  fnew
-
-let barrier ?(set = false) futs =
-  let fnew = undet () in 
-  let undet = ref 0 in                        (* remaining undets in [futs]. *)
-  let waiter = function 
-  | `Never when not set -> fut_shallow_abort fnew
-  | `Det _ | `Never -> decr undet; if !undet = 0 then fut_det fnew (`Det ())
-  in
-  let rec add_deps = function 
-  | dep :: deps -> 
-      let dep = src dep in
-      begin match dep.state with 
-      | `Det _ -> add_deps deps
-      | `Never -> if set then add_deps deps else fut_shallow_abort fnew
-      | `Undet _ -> 
-          incr undet; 
-          add_dep fnew ~on:dep waiter;
-          add_deps deps
-      | `Alias _ -> assert false
-      end
-  | [] -> if !undet = 0 then fut_det fnew (`Det ())
-  in
-  add_deps futs; 
   fnew
     
 let sustain fut fut' =

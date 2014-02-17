@@ -104,18 +104,6 @@ val fold : ('a -> 'b -> 'a) -> 'a -> 'b t list -> 'a t
     {- \[[fold fn acc \[f]{_1}[; ...; f]{_n}[\]]\]{_t} 
     [= `Never] if there is [i] with \[[f]{_i}\]{_t} [= `Never]}} *)
 
-val barrier : ?set:bool -> unit t list -> unit t
-(** [barrier set \[f]{_1}[; ...; f]{_n}[\]] determines
-    when all [f]{_i} do. If [set] is [true] (defaults to [false]), 
-    determines when all [f]{_i} are set.
-    {ul 
-    {- \[[barrier false \[f]{_1}[; ...; f]{_n}[\]]\]{_t} 
-     [= `Det ()] if for all [i] \[[f]{_i}\]{_t} [= `Det ()]}
-    {- \[[barrier false \[f]{_1}[; ...; f]{_n}[\]]\]{_t}
-     [= `Never] if there is [i] with \[[f]{_i}\]{_t} [= `Never]}
-    {- \[[barrier true \[f]{_1}[; ...; f]{_n}[\]]\]{_t} 
-     [= `Det ()] if for all [i] \[[f]{_i}\]{_t} [<> `Undet]}}*)
-
 val sustain : 'a t -> 'a t -> 'a t
 (** [sustain f f'] determines like [f] if it does and like [f'] 
     if [f] never determines.

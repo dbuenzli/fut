@@ -246,53 +246,6 @@ let fold () =
   in
   ()
 
-let barrier () = 
-  log "* Test barrier\n";
-  let set = true in
-  is_det (Fut.barrier [Fut.ret (); Fut.ret (); Fut.ret ()]) ();
-  is_never (Fut.barrier [Fut.ret (); Fut.never (); Fut.ret ()]);
-  is_det (Fut.barrier ~set [Fut.ret (); Fut.never (); Fut.ret ()]) ();
-  is_det (Fut.barrier []) (); 
-  is_det (Fut.barrier ~set []) ();
-  let () = 
-    let f1, p1 = promise () in 
-    let f2, p2 = promise () in 
-    let f3, p3 = promise () in 
-    let n, pn = promise () in 
-    let b1 = Fut.barrier [ f1; f2; f3; Fut.ret () ] in 
-    let b2 = Fut.barrier ~set [ f1; f2; f3; Fut.ret () ] in 
-    let b3 = Fut.barrier ~set [ f1; f2; f3; Fut.never () ] in 
-    let b4 = Fut.barrier ~set [ n; f1; f2; f3; ] in 
-    let b5 = Fut.barrier ~set [ f1; n; f2; f3; ] in 
-    let b6 = Fut.barrier ~set [ f1; f2; n; f3; ] in 
-    let b7 = Fut.barrier ~set [ f1; f2; f3; n; ] in 
-    let nb1 = Fut.barrier [ f1; f2; f3; Fut.never () ] in 
-    let nb2 = Fut.barrier [ n; f1; f2; f3; ] in 
-    let nb3 = Fut.barrier [ f1; n; f2; f3; ] in 
-    let nb4 = Fut.barrier [ f1; f2; n; f3; ] in 
-    let nb5 = Fut.barrier [ f1; f2; f3; n; ] in 
-    is_undet b1; is_undet b2; is_undet b3; is_undet b4; is_undet b5; 
-    is_undet b6; is_undet b7; 
-    is_never nb1; is_undet nb2; is_undet nb3; is_undet nb4; is_undet nb5;
-    Fut.set p1 (`Det ());
-    is_undet b1; is_undet b2; is_undet b3; is_undet b4; is_undet b5; 
-    is_undet b6; is_undet b7; 
-    is_never nb1; is_undet nb2; is_undet nb3; is_undet nb4; is_undet nb5;
-    Fut.set p2 (`Det ());
-    is_undet b1; is_undet b2; is_undet b3; is_undet b4; is_undet b5; 
-    is_undet b6; is_undet b7; 
-    is_never nb1; is_undet nb2; is_undet nb3; is_undet nb4; is_undet nb5;
-    Fut.set pn `Never;
-    is_undet b1; is_undet b2; is_undet b3; is_undet b4; is_undet b5; 
-    is_undet b6; is_undet b7; 
-    is_never nb1; is_never nb2; is_never nb3; is_never nb4; is_never nb5;
-    Fut.set p3 (`Det ()); 
-    is_det b1 (); is_det b2 (); is_det b3 (); is_det b4 (); is_det b5 (); 
-    is_det b6 (); is_det b7 (); 
-    is_never nb1; is_never nb2; is_never nb3; is_never nb4; is_never nb5;
-  in
-  ()
-
 let sustain () = 
   log "* Test sustain\n"; 
   is_det (Fut.sustain (Fut.ret 3) (Fut.ret 2)) 3; 
@@ -444,7 +397,6 @@ let suite () =
   map ();
   ignore ();
   fold ();
-  barrier ();
   sustain ();
   first ();
   firstl ();
