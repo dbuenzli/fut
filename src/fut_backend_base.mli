@@ -69,12 +69,13 @@ module type Backend = sig
 
   (** {2 Signal actions} *) 
 
-  val signal_action : int -> (unit -> unit) -> unit
+  val signal_action : int -> (abort -> (int -> unit) * 'a) -> 'a
+  (** See {!Fut.Runtime.signal_action}. *)
 
   (** {2 Timer actions} *) 
 
   val deadline : unit -> float option
-  (** See {!Fut.Runtime.deadline} *) 
+  (** See {!Fut.Runtime.deadline}. *) 
 
   val timer_action : float -> (abort -> (float -> unit) * 'a) -> 'a 
   (** See {!Fut.Runtime.timer_action}. *)   

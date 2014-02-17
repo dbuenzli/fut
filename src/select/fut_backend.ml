@@ -224,7 +224,7 @@ end
 module Signal_actions : sig
   val start : unit -> unit 
   val stop : unit -> unit 
-  val add : int -> (unit -> unit) -> unit 
+  val add : int -> (Fut_backend_base.abort -> (int -> unit) * 'a) -> 'a
   val exec : unit -> unit
 end = struct  
 
@@ -243,7 +243,7 @@ end = struct
   
   let signaled = ref Sset.empty                (* set of delivered signals. *) 
   let handled_signals = ref Sset.empty       (* signals handled by backend. *)
-  let signal_actions = ref Smap.empty    (* actions to perform for a signal. *) 
+  let signal_actions = ref Smap.empty   (* actions to perform for a signal. *) 
       
   let start () = ()
   let stop () =
@@ -253,26 +253,43 @@ end = struct
     handled_signals := Sset.empty; 
     signal_actions := Smap.empty
                         
-  let add s a = 
-    signal_actions := Smap.add_action !signal_actions s a;
-    if Sset.mem s !handled_signals then () else 
-    let h s = signaled := Sset.add s !signaled; Unblock.asap () in
-    handled_signals := Sset.add s !handled_signals;
-    ignore (Sys.set_signal s (Sys.Signal_handle h))
+  let add s def =
+    let action_ref = ref None in 
+    let abort () = action_ref := None in 
+    let action, v = def abort in 
+    action_ref := Some action;
+    signal_actions := Smap.add_action !signal_actions s action_ref;
+    if not (Sset.mem s !handled_signals) then begin 
+      let handle s = signaled := Sset.add s !signaled; Unblock.asap () in
+      handled_signals := Sset.add s !handled_signals;
+      Sys.set_signal s (Sys.Signal_handle handle); 
+    end; 
+    v
       
-  let exec () = 
-    let exec s =
-      let actions = try Smap.find s !signal_actions with Not_found -> [] in
-      signal_actions := Smap.remove s !signal_actions;
-      List.iter (fun a -> Fut_backend_base.trap `Signal_action a ()) actions
+  let exec () =
+    let exec_action s action_ref = match !action_ref with 
+    | None -> () 
+    | Some action -> Fut_backend_base.trap `Signal_action action s
     in
-    Sset.iter exec !signaled; 
-    signaled := Sset.empty
+    let exec_signaled s =
+      let actions = 
+        try 
+          let actions = Smap.find s !signal_actions in 
+          signal_actions := Smap.remove s !signal_actions; 
+          actions
+        with 
+        | Not_found -> [] 
+      in
+      List.iter (exec_action s) actions
+    in
+    let todo = !signaled in  (* Avoid races if signals occur during [exec]. *)
+    signaled := Sset.empty;
+    Sset.iter exec_signaled todo
 end
     
 (* Runtime actions *)
     
-let am = Mutex.create ()            (* other workers may access [actions]. *)
+let am = Mutex.create ()             (* other workers may access [actions]. *)
 let actions = ref []
 let stop_runtime_actions () = actions := []
 let action a = 

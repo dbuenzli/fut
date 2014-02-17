@@ -26,10 +26,23 @@ let signal_twice () =
   ignore (Fut.await f);
   is_det f s; 
   ()
+
+let signal_abort () = 
+  log_test "Test signal abort"; 
+  let s = Sys.sigusr1 in 
+  let f = Fut.map (fun x -> Some x) (Futu.signal s) in 
+  is_undet f; 
+  Fut.abort f; 
+  is_never f;
+  send_signal s;
+  ignore (Fut.await f); 
+  is_never f;
+  ()
   
 let suite () =
   log_suite "Testing signals";
   signal_twice ();
+  signal_abort ();
   ()
 
 

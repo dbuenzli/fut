@@ -22,9 +22,11 @@ let call f v = failwith "TODO"
 (* Signals *) 
     
 let signal s = 
-  let p = Fut.promise () in
-  let a () = Fut.set p (`Det s) in
-  Fut.Runtime.signal_action s a; Fut.future p
+  let def abort =
+    let p = Fut.promise ~abort () in
+    (fun s -> Fut.set p (`Det s)), Fut.future p
+  in
+  Fut.Runtime.signal_action s def
   
 (* File descritpors *)
   

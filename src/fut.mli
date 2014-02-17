@@ -367,12 +367,12 @@ module Runtime : sig
 
   type abort = unit -> unit 
   (** The type for action's abort functions. Calling an abort function 
-      associated to an [action] function {b must} have the following
-      effects:
+      associated to an [action] function has the following
+      effects and must be guaranteed by the backends:
       {ul 
-      {- If [action] wasn't executed yet. It guarantees that 
+      {- If the [action] wasn't executed yet. It guarantees that 
          [action] will never be called and will be eventually gc'd.}
-      {- If [action] was already executed, it has no effects.}} *)
+      {- If the [action] was already executed, it has no effects.}} *)
 
   (** {2 Runtime actions} *) 
 
@@ -384,9 +384,13 @@ module Runtime : sig
 
   (** {2 Signal actions} *)
 
-  val signal_action : int -> (unit -> unit) -> unit
-  (** [signal_action s a] executes [a ()] whenever 
-      signal [s] is received. *)
+  val signal_action : int -> (abort -> (int -> unit) * 'a) -> 'a
+  (** [signal_action s def] calls [def] with an [abort] function 
+      to get [(action,v)]. The function [action] is scheduled for 
+      execution whenever the next signal [s] is received and will 
+      be called once with [s] when that happens or never if [abort]
+      was called before, see {!abort} for details. The value [v] is 
+      simply returned by [signal_action]. *)
 
   (** {2 Timer actions} *)
 
@@ -399,8 +403,8 @@ module Runtime : sig
   (** [timer_action d def] calls [def] with an [abort] function to 
       get [(action,v)]. The function [action] is scheduled for execution 
       in [d] seconds and will be called once with the actualy delay that 
-      was performed or never if [abort] was called before, see {!abort}.
-      The value [v] is simply returned by [timer_action]. *)
+      was performed or never if [abort] was called before, see {!abort} 
+      for details. The value [v] is simply returned by [timer_action]. *)
 
   (** {2 File descriptor actions and closing} *)
                                                 
