@@ -165,7 +165,12 @@ end
 
 (* Waiter sets *)
 
-let wcleanup ws =                            (* remove None waiters in [ws]. *)
+let wunion ws ws' = match ws, ws' with             (* unions [ws] and [ws']. *)
+| Wempty, ws | ws, Wempty
+| Waiter { contents = None }, ws | ws, Waiter { contents = None } -> ws
+| ws, ws' -> Wunion (ws, ws')
+
+let wcleanup u =                           (* remove None waiters in [u.ws]. *)
   let rec loop acc = function 
   | Wempty :: todo -> loop acc todo 
   | Waiter { contents = None } :: todo -> loop acc todo
@@ -174,19 +179,14 @@ let wcleanup ws =                            (* remove None waiters in [ws]. *)
   | Wunion (ws, ws') :: todo -> loop acc (ws :: ws' :: todo)
   | [] -> acc
   in
-  loop Wempty [ws]
-
-let wunion ws ws' = match ws, ws' with             (* unions [ws] and [ws']. *)
-| Wempty, ws | ws, Wempty
-| Waiter { contents = None }, ws | ws, Waiter { contents = None } -> ws
-| ws, ws' -> Wunion (ws, ws')
+  if u.ws_adds > Runtime.waiter_cleanup_limit 
+  then (u.ws_adds <- 0; u.ws <- loop Wempty [u.ws])
 
 let add_waiter u wf = (* adds waiter with function [wf] to undetermined [u]. *)
   let w = ref (Some wf) in
   u.ws <- wunion (Waiter w) u.ws;
-  u.ws_adds <- u.ws_adds + 1; 
-  if u.ws_adds > Runtime.waiter_cleanup_limit 
-  then (u.ws_adds <- 0; u.ws <- wcleanup u.ws);
+  u.ws_adds <- u.ws_adds + 1;
+  wcleanup u;
   w
 
 let exec_waiters ws (s : 'a set) =       (* execs [ws] with future set [s]. *)
@@ -214,10 +214,10 @@ let dunion ds ds' = match ds, ds' with             (* unions [ds] and [ds']. *)
 
 let add_dep fut ~on:dep wf = (* [fut] deps on [dep] and waits with fun [wf]. *)
   match dep.state with 
-  | `Undet udep ->
-      let w = add_waiter udep wf in 
+  | `Undet depu ->
+      let w = add_waiter depu wf in 
       begin match fut.state with 
-      | `Undet ufut -> ufut.deps <- dunion ufut.deps (Dep (dep, w)); 
+      | `Undet futu -> futu.deps <- dunion futu.deps (Dep (dep, w)); 
       | _ -> assert false 
       end
   | _ -> assert false 
@@ -256,21 +256,24 @@ let stop_waiting_on deps =
   in
   loop [deps]
 
-let fut_det fut (det : [ `Det of 'a ]) = match fut.state with 
-| `Undet u ->
-    fut.state <- (det :> 'a _state);
-    stop_waiting_on u.deps;
-    exec_waiters u.ws (det :> 'a set)
-| _ -> assert false
-
-let fut_shallow_abort fut = match fut.state with 
-| `Undet u ->
-    fut.state <- `Never;
-    u.abort ();
-    stop_waiting_on u.deps;
-    exec_waiters u.ws `Never
-| _ -> assert false 
-
+let fut_det fut (det : [ `Det of 'a ]) = 
+  let fut = src fut in
+  match fut.state with 
+  | `Undet u ->
+      fut.state <- (det :> 'a _state);
+      stop_waiting_on u.deps;
+      exec_waiters u.ws (det :> 'a set)
+  | _ -> assert false
+    
+let fut_shallow_abort fut = 
+  let fut = src fut in
+  match fut.state with 
+  | `Undet u ->
+      fut.state <- `Never;
+      u.abort ();
+      stop_waiting_on u.deps;
+      exec_waiters u.ws `Never
+  | _ -> assert false 
 
 type wnever = Wnever : 'a waiters -> wnever (* wait on `Never, hide 'a *) 
 
@@ -297,14 +300,16 @@ let rec abort_deps_and_notify_waiters depss notifs = match depss with
 | [] -> () 
         
 and deep_abort : 'a. 'a t -> deps list list -> wnever list -> unit =
-  fun fut depss notifs -> match fut.state with 
-  | `Undet u -> 
-      fut.state <- `Never; 
-      u.abort (); 
-      stop_waiting_on u.deps; 
-      abort_deps_and_notify_waiters 
-        ([u.deps] :: depss) ((Wnever u.ws) :: notifs)
-  | _ -> assert false 
+  fun fut depss notifs -> 
+    let fut = src fut in
+    match fut.state with 
+    | `Undet u -> 
+        fut.state <- `Never; 
+        u.abort (); 
+        stop_waiting_on u.deps; 
+        abort_deps_and_notify_waiters 
+          ([u.deps] :: depss) ((Wnever u.ws) :: notifs)
+    | _ -> assert false 
     
 and fut_deep_abort : 'a. 'a t -> unit = fun fut ->
   deep_abort fut [] [] 
@@ -326,28 +331,35 @@ let undet () = { state = `Undet (undet_state nop) }
 let undet_abort abort = { state = `Undet (undet_state abort) }
 let never () = { state = `Never } 
 
-let alias fut ~src:res =                    (* aliases [fut] to undet [res]. *)
-  let fut = src fut in
-  let res = src res in 
-  match res.state with 
-  | `Undet u -> 
-      begin match fut.state with 
-      | `Det _ as det -> fut_det res det
-      | `Never -> fut_shallow_abort res
-      | `Undet u' ->
-          fut.state <- `Alias res;
-          (* union waiter sets, cleanup if needed. *)
-          u.ws <- wunion u.ws u'.ws;            
-          u.ws_adds <- u.ws_adds + u'.ws_adds; 
-          if u.ws_adds > Runtime.waiter_cleanup_limit
-          then (u.ws_adds <- 0; u.ws <- wcleanup u.ws);
-          (* union deps and concatenate abort actions *)
-          u.deps <- dunion u.deps u'.deps;
-          u.abort <- concat_aborts u.abort u'.abort
+let alias internal ~src:fut =       
+  (* aliases [internal] to undet [fut]. The client has no reference 
+     to [internal] but may have one on [fut]. This allows to gc
+     [internal] if it is not needed. *)
+  let internal = src internal in
+  let fut = src fut in 
+  match fut.state with
+  | `Undet futu -> 
+      begin match internal.state with 
+      | `Det _ as det -> fut_det fut det
+      | `Never -> fut_shallow_abort fut
+      | `Undet internalu ->
+          (* [internal] is an alias for [fut]. The other way round would
+             leak since potentially we a reference on [fut]. Aliasing
+             the later to [internal] would mean we keep a ref on [internal]
+             and prevent its garbage collection. *) 
+          internal.state <- `Alias fut; 
+          (* union waiter sets, no waiter on these two futures shall be 
+             orphaned, *)
+          futu.ws <- wunion futu.ws internalu.ws;            
+          futu.ws_adds <- futu.ws_adds + internalu.ws_adds; 
+          wcleanup futu;
+          (* since [fut] shall behave like [internal] it gets its deps. *)
+          futu.deps <- futu.deps;
+          (* concatenate abort actions, no abort action shall be orphaned. *)
+          futu.abort <- concat_aborts futu.abort internalu.abort
       | _ -> assert false 
       end
   | _ -> assert false 
-
 
 (* Futures *)
     
