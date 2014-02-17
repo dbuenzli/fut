@@ -8,19 +8,29 @@ let str = Printf.sprintf
 
 let suites = 
   [ `Base, Test_base.suite;
-    `Loops, Test_loops.suite; ]
+    `Loops, Test_loops.suite; 
+    `Signals, Test_signals.suite; ]
 
 let suite_ids = List.map fst suites  
 
 let tests suite_ids =
   let test id = (List.assoc id suites) () in
   List.iter test suite_ids;
-  Testing.log "All tests suceeded.\n"
+  if !Testing.failure_count > 0 then begin 
+    Testing.(log "There were %d failure out of %d assertions" 
+               !failure_count !assert_count); 
+    exit 1
+  end else begin 
+    Testing.(log "All tests suceeded (%d assertions).@." !assert_count); 
+    exit 0
+  end
     
 let main () = 
+  let quote s = str "`%s'" s in
   let sid_to_string = function 
-  | `Base -> "`base'" | `Loops -> "`loops'" 
+  | `Base -> "base" | `Loops -> "loops" | `Signals -> "signals" 
   in
+  let sid_to_string s = quote (sid_to_string s) in
   let usage = 
     let suites = String.concat ", " (List.map sid_to_string suite_ids) in
     str "Usage: %s [SUITE]...\n Tests Fut.\
@@ -34,6 +44,7 @@ let main () =
   let anon = function 
   | "base" -> add_suite `Base 
   | "loops" -> add_suite `Loops 
+  | "signals" -> add_suite `Signals
   | s -> raise (Arg.Bad (str "no test suite named `%s'" s)) 
   in
   Arg.parse (Arg.align options) anon usage;

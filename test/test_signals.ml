@@ -4,66 +4,39 @@
    %%NAME%% release %%VERSION%%
   ---------------------------------------------------------------------------*)
 
-(** Testing for Fut. 
+(* Tests the runtime's system signal functionality and Futu.signal *) 
 
-    A few tools to write tests for [Fut].  *)
+open Fut.Ops;;
+open Testing;;
 
-(** {1 Logging} *)
+let send_signal = 
+  let self = Unix.getpid () in
+  fun s -> Unix.kill self s
 
-val str : ('a, unit, string) format -> 'a
-(** [str] is {!Format.sprintf} *)  
+let signal_twice () =
+  log_test "Test signal twice";  
+  let s = Sys.sigusr1 in
+  let f = Futu.signal s in
+  is_undet f;
+  send_signal s; 
+  is_undet f;
+  ignore (Fut.await f);
+  is_det f s; 
+  send_signal s;
+  ignore (Fut.await f);
+  is_det f s; 
+  ()
+  
+let suite () =
+  log_suite "Testing signals";
+  signal_twice ();
+  ()
 
-val pp : Format.formatter -> ('a, Format.formatter, unit) format -> 'a
-(** [pp] is {!Format.fprintf}. *) 
 
-val log : ('a, Format.formatter, unit, unit, unit, unit) format6 -> 'a
-(** [log msg] logs [msg] on stdout. *)
 
-val log_test : ('a, Format.formatter, unit, unit, unit, unit) format6 -> 'a
-(** [log_test msg] logs [msg] on stdout. *)
 
-val log_suite : ('a, Format.formatter, unit, unit, unit, unit) format6 -> 'a
-(** [log_suite msg] logs [msg] on stdout. *)
 
-val fail : ('a, Format.formatter, unit, 'b) format4 -> 'a
-(** [fail msg] raises [Failure msg]. *)
 
-val assert_count : int ref
-val failure_count : int ref
-
-(** {1 Asserting futures} 
-
-    Assert functions just raise [Failure _] when the assertion doesn't
-    hold. Compile with [-g] (and to byte code if the trace is lacunar). *)
-
-val promise : unit -> 'a Fut.t * 'a Fut.promise
-(** [promise ()] is a future and its promise. *) 
-
-val is_state : 'a Fut.t -> 'a Fut.state -> unit
-(** [is state f s] asserts that [f] as state [s]. *)
-
-val is_never : 'a Fut.t -> unit
-(** [is_never f] assert that [f] is set to never determine. *) 
-
-val is_det : 'a Fut.t -> 'a -> unit
-(** [is_det f v] asserts that [f] determined to [v]. *) 
-
-val is_undet : 'a Fut.t -> unit
-(** [is_undet f] asserts that [f] is undetermined. *) 
-
-val record_trap : unit -> unit
-(** [record_trap ()] must be called before operations after
-    which you want to {!assert_trap}. A single exception trap invocation 
-    should occur between [record_trap] and {!assert_trap} otherwise
-    the test fails. *) 
-
-val trapped : [ `Exn of Fut.Runtime.exn_ctx * exn | `Nothing ] -> unit
-(** [trapped v] asserts according to [v]:
-    {ul 
-    {- [`Exn _], trap should have been once called with the corresponding 
-       arguments since the last {!record_trap}.}
-    {- [`Nothing], the trap should not have been invoked since the last
-       {!record_trap}.}} *)
 
 (*---------------------------------------------------------------------------
    Copyright (c) 2014 Daniel C. Bünzli.

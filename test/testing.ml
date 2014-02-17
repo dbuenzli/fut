@@ -10,6 +10,12 @@ let exn_to_str = Printexc.to_string
 let str = Format.sprintf 
 let pp = Format.fprintf 
 let log f = Format.printf (f ^^ "@?") 
+let log_test f = Format.printf ( "* " ^^ f ^^ "@.")
+let log_suite f = Format.printf ( f ^^ "@.")
+
+let assert_count = ref 0
+let failure_count = ref 0 
+
 let fail fmt = 
   let fail _ = failwith (Format.flush_str_formatter ()) in 
   Format.kfprintf fail Format.str_formatter fmt
@@ -29,9 +35,35 @@ let pp_exn_ctx ppf = function
 | `Signal_action -> pp ppf "`Signal_action"
 | `Runtime_action -> pp ppf "`Runtime_action"
 
+let stack_to_loc stack =                                         (* Grrrrr. *) 
+  let stack = Printexc.raw_backtrace_to_string stack in
+  try
+    let start = String.index stack '\n' in 
+    let fstart = String.index_from stack start '\"' + 1 in 
+    let fend = String.rindex stack '\"' - 1 in
+    let file = String.sub stack fstart (fend - fstart + 1) in
+    let lstart = fend + 9 in
+    let lend = String.rindex stack ',' - 1 in
+    let line = String.sub stack lstart (lend - lstart + 1) in
+    str "%s:%d: " file (int_of_string line)
+  with 
+  | Not_found | Failure _ -> "????:??:" 
+
+let log_fail loc fmt = 
+  let loc = stack_to_loc loc in
+  incr failure_count; 
+  Format.printf ("  %s" ^^ fmt ^^ "@.") loc
+
 let is_state f s = 
+  incr assert_count; 
+  let loc = Printexc.get_callstack 2 in
   let s' = Fut.state f in 
-  if s' <> s then fail "%a not %a" pp_state s' pp_state s
+  match s, s' with 
+  | `Det a, `Det b when a <> b -> 
+      log_fail loc "determined unexpected value" 
+  | s, s' when s <> s' -> 
+      log_fail loc "expected %a not %a" pp_state s pp_state s
+  | _ , _ -> ()
 
 let is_never f = is_state f `Never
 let is_det f d = is_state f (`Det d)
@@ -40,6 +72,7 @@ let is_undet f = is_state f `Undet
 let (record_trap : (unit -> unit)),
     (trapped : ([ `Exn of Fut.Runtime.exn_ctx * exn | `Nothing ] -> unit) )
   = 
+  (* TODO count and don't fail like in is_state *) 
   let trapped = ref `Nothing in 
   let record () =
     trapped := `Nothing;
