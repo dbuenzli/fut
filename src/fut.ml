@@ -25,13 +25,13 @@ type 'a state =                (* future state as exported in the interface. *)
   | `Undet ]                                         (* undetermined future. *)
 
 (* A waiter is a function associated to an undetermined future [f] to
-   be called when the future [f] is set. The waiter is usually (but
-   not only e.g. see [finally]) registered by another undetermined
-   future that needs to wait on that result to determine itself.  A
-   waiter is a mutable option to avoid space leaks if the waiter is no
-   longer interested, for example undetermined futures sometimes set this 
-   reference to [None] when they are set through a call to the [stop_wait] 
-   field of ['a undet]. *)
+   be called when [f] is set. The waiter is usually (but not only
+   e.g. see [finally]) registered by another undetermined future that
+   needs to wait on that result to determine itself.  A waiter is a
+   mutable option to avoid space leaks if the waiter is no longer
+   interested, for example undetermined futures sometimes set this
+   reference to [None] when they are set through a call to the
+   [stop_waiting_on] field of ['a undet]. *)
 
 type 'a waiter = ('a set -> unit) option ref (* called when a future is set. *)
 
@@ -40,83 +40,99 @@ and 'a waiters =                       (* sets of waiters on a future value. *)
   | Waiter of 'a waiter                                       (* waiter [w]. *)
   | Wunion of 'a waiters * 'a waiters        (* union of sets [ws] and [ws']. *)
 
-and deep_aborts =                (* sets of futures to abort on deep aborts. *) 
-  | Dempty : deep_aborts
-  | Dabort : 'a t -> deep_aborts 
-  | Dunion : deep_aborts * deep_aborts -> deep_aborts
+(* A dependency is a future in which an undetermined future [f] registred
+   a waiter. Dependencies are kept for walking up the dependency in 
+   deep aborts and for allowing to unregister waiters [f] installed in 
+   its dependencies (see [stop_waiting_on]). *) 
+
+and deps =                           (* sets of futures a future depends on. *) 
+  | Dempty : deps                                              (* empty set. *) 
+  | Dep : 'a t * 'a waiter -> deps             (* dependency and its waiter. *) 
+  | Dunion : deps * deps -> deps        (* union of sets [deps] and [deps']. *) 
 
 and 'a undet =                                        (* undetermined state. *)
   { mutable ws : 'a waiters;                (* waiters on this undetermined. *)
     mutable ws_adds : int;     (* number of adds in [ws] since last cleanup. *)
-    mutable stop_wait : unit -> unit;    (* stops the wait on other futures. *)
-    mutable deep_aborts : deep_aborts;   (* futures to abort in deep aborts. *)
+    mutable deps : deps;                (* futures on which the undet waits. *) 
     mutable abort : unit -> unit; }(* custom action invoked once if aborted. *)
 
-(* If a future [fut] is set to [`Det]ermine the following happens: 
+(* Future [`Det]ermines
+   --------------------
+
+   If a future [fut] is set to [`Det]ermine the following happens: 
    
    1) The state of [fut] is set to [`Det _]. 
-   2) The [stop_wait] function of [fut] is called. This sets all 
-      the waiters [fut] registred in other futures to [None]. 
-   3) The waiters [ws] of [fut] are notified that [fut] is set to  [`Det _].
-   
-   See [fut_det]. 
-   
-   If a future [fut] is set to [`Never] determine it needs to be aborted. 
-   There are two kind of aborts: shallow and deep aborts. 
+   2) The [deps] of [fut] are walked over and the waiter [fut] registred
+      in them is set to [None].
+   3) The waiters [ws] of [fut] are notified that [fut] is set to [`Det _].
 
-   Shallow aborts (applicative combinators)
-   ----------------------------------------
+   Note that after this [fut]'s undet value will be gc'd.
+
+   See the [fut_det] function.
+
+   Future [`Never] determines
+   --------------------------
+
+   If a future [fut] is set to [`Never] determine it is aborted. There are 
+   two kind of aborts: shallow and deep aborts. 
+
+   ## Shallow aborts (applicative combinators)
   
    A shallow abort occurs whenever a future [fut] is set to [`Never]
    determine because of the behaviour of the futures it is waiting on. 
    Shallow aborts are typically performed by applicative combinators when 
-   they are set to never determine. In that case the following happens:
+   their semantics sets them to never determine. In that case the following 
+   happens:
 
    1) The state of [fut] is set to [`Never].
-   2) The [stop_wait] function of [fut] is called. This sets all the 
-      waiters [fut] registred in other futures to [None].
-   3) The custom [abort] function of [fut] is called.
+   2) The custom [abort] function of [fut] is called. 
+   3) The [deps] of [fut] are walked over and the waiter [fut] registred
+      in them is set to [None].
    4) The waiters [ws] of [fut] are notified that [fut] is set to [`Never].
 
-   See [fut_shallow_abort]. 
+   See the [fut_shallow_abort] function.
 
-   Deep aborts (Fut.abort or effectful combinators)
-   ------------------------------------------------
+   ## Deep aborts (Fut.abort or effectful combinators)
 
    A deep abort occurs whenever a future [fut] is set to [`Never]
-   determine because [Fut.abort fut] is called. This can occur 
-   because the client manually uses this function or because an 
-   effectful combinator is used that invokes [Fut.abort] on one
-   of its arguments. In that case the following happens: 
+   determine because [Fut.abort fut] is called or because [fut] is
+   given to an effectuful combinator that calls [Fut.abort] on it. In
+   that case the following happens:
 
-   1-3) Is like the corresponding steps in shallow aborts.
-   4) The futures in [deep_aborts] of [fut] get a call to [Fut.abort]
+   1) The state of [fut] is set to [`Never]
+   2) The custom [abort] function of [fut] is called.
+   3) The [deps] of [fut] are walked over and the waiter [fut] registred
+      in them is set to [None].
+   4) Abort each dependency.
    5) The waiters [ws] of [fut] are notified that [fut] is set to [`Never].
-
-   See [fut_deep_abort].
+   
+   The reason in we first set all the waiters to [None] and only abort 
+   their corresponding dependency later (effectively walking over the deps 
+   twice) is if we remove the waiter and then directly call abort on the dep 
+   one of our waiters could still be called e.g. if we have this dependency 
+   graph:
+  
+       F0 <--- F1 <--- F2
+       ^--------------/
+   
+   See the [fut_deep_abort] function.
 
    Waiter set compaction
    ---------------------
 
-   Whenever a future is set, either to determine or to never
-   determine, it has the effect of setting waiters it registred to
-   [None] in the waiter set [ws] of other undetermined futures (the
-   step 2 in all algorithms above). If nothing is done to remove these 
-   [None] waiters this can lead to space leaks. There are two mechanism 
-   to remove these none waiters:
+   As we have seen above whenever a future is set, either to determine
+   or to never determine, it has the effect of setting waiters it
+   registred to [None] in the waiter set [ws] of other undetermined
+   futures. If nothing is done to remove these [None] waiters this can
+   lead to space leaks. There are two mechanism to remove these none
+   waiters:
 
-   a) When a waiter is added to a set [ws] if it sees a top level [None] 
-      waiter it removes it, see the [union] function. 
-   b) When a waiter is added to a set [ws] we increment [ws_adds]. If 
-      [ws_adds] exceeds [Runtime.cleanup_limit], all [None] waiters
-      are removed from [ws], see the [cleanup] function. 
+   1. When a waiter is added to a set [ws] if it sees a top level
+      [None] waiter it removes it. See the [wunion] function.  
 
-   Deep aborts compaction 
-   ----------------------
-
-   TODO do we get a strategy here ? We could leak. 
-
-*)
+   2. When a waiter is added to a set [ws] we increment [ws_adds]. If
+      [ws_adds] exceeds [Runtime.waiter_cleanup_limit], all [None]
+      waiters are removed from [ws]. See the [wcleanup] function.  *)
 
 and 'a _state =                                   (* internal future state. *)
   [ 'a set
@@ -133,28 +149,23 @@ and 'a t = { mutable state : 'a _state }                        (* future. *)
 (* Runtime system. *)
 
 module Runtime = struct
-
   include Fut_backend_base 
   include Fut_backend     
 
-  let cleanup_limit = 97
+  let waiter_cleanup_limit = 97
   let worker_count = Queue.worker_count
   let set_worker_count count = 
     if count < 0 then invalid_arg (err_invalid_worker_count count) else
     Queue.set_worker_count count
                            
-  let () = Fut_backend.start (); at_exit Fut_backend.stop
+  let () = 
+    Fut_backend.start (); 
+    at_exit Fut_backend.stop
 end 
-
-(* Deep aborts *) 
-
-let dunion ds ds' = match ds, ds' with              (* unions [ds] and [ds'] *) 
-| Dempty, ds | ds, Dempty -> ds 
-| ds, ds' -> Dunion (ds, ds')
 
 (* Waiter sets *)
 
-let cleanup ws =                             (* remove None waiters in [ws]. *)
+let wcleanup ws =                            (* remove None waiters in [ws]. *)
   let rec loop acc = function 
   | Wempty :: todo -> loop acc todo 
   | Waiter { contents = None } :: todo -> loop acc todo
@@ -170,38 +181,46 @@ let wunion ws ws' = match ws, ws' with             (* unions [ws] and [ws']. *)
 | Waiter { contents = None }, ws | ws, Waiter { contents = None } -> ws
 | ws, ws' -> Wunion (ws, ws')
 
-let notify_waiters ws s =                   (* notifies [ws] with state [s]. *)
+let add_waiter u wf = (* adds waiter with function [wf] to undetermined [u]. *)
+  let w = ref (Some wf) in
+  u.ws <- wunion (Waiter w) u.ws;
+  u.ws_adds <- u.ws_adds + 1; 
+  if u.ws_adds > Runtime.waiter_cleanup_limit 
+  then (u.ws_adds <- 0; u.ws <- wcleanup u.ws);
+  w
+
+let exec_waiters ws (s : 'a set) =       (* execs [ws] with future set [s]. *)
+(* N.B. waiter notification is not T.R. See if it is a problem 
+   in practice. One solution could be to thread the waiter set and
+   s in waiting functions through fut_{set,shallow_abort,deep_abort}. 
+   Maybe a simpler one is to have fut_{set,shallow_abort,deep_abort} 
+   have their waiters put into a queue rather than execute everything 
+   as it goes (that would make the execution in bfs rather than dfs 
+   order)*)
   let rec loop s = function 
   | Wempty :: todo -> loop s todo 
   | Waiter { contents = None } :: todo -> loop s todo
-  | Waiter { contents = Some w } :: todo -> w s; loop s todo
+  | Waiter { contents = Some w } :: todo -> w s; loop s todo     (* not T.R. *) 
   | Wunion (w, w') :: todo -> loop s (w :: w' :: todo)
   | [] -> ()
   in
   loop s [ws]
 
-let add_waiter u wf = (* adds waiter with function [wf] to undetermined [u]. *)
-  let w = ref (Some wf) in
-  u.ws <- wunion (Waiter w) u.ws;
-  u.ws_adds <- u.ws_adds + 1; 
-  if u.ws_adds > Runtime.cleanup_limit 
-  then (u.ws_adds <- 0; u.ws <- cleanup u.ws);
-  w
+(* Dependency sets *) 
 
-let waits fut wf ~on:dep = (* [f] waits with function [wf] on 
-                              undetermined [dep]. *)
-  begin match dep.state with 
-  | `Undet u -> 
-      let w = add_waiter u wf in
+let dunion ds ds' = match ds, ds' with             (* unions [ds] and [ds']. *) 
+| Dempty, ds | ds, Dempty -> ds 
+| ds, ds' -> Dunion (ds, ds')
+
+let add_dep fut ~on:dep wf = (* [fut] deps on [dep] and waits with fun [wf]. *)
+  match dep.state with 
+  | `Undet udep ->
+      let w = add_waiter udep wf in 
       begin match fut.state with 
-      | `Undet u ->
-          u.stop_wait <- fun () -> w := None; 
-          u.deep_aborts <- dunion u.deep_aborts (Dabort dep);
-      | _ -> assert false
+      | `Undet ufut -> ufut.deps <- dunion ufut.deps (Dep (dep, w)); 
+      | _ -> assert false 
       end
-  | _ -> assert false
-  end
-
+  | _ -> assert false 
 
 (* Abort actions *) 
 
@@ -210,125 +229,102 @@ let concat_aborts a a' =
   if a' == nop then a else 
   fun () -> a (); a' ()
 
-(* Futures *)
+(* Low-level future determination *) 
 
-let src f = match f.state with (* get [f]'s src and compacts the alias chain. *)
-| `Alias src ->
-    begin match src.state with 
-    | `Alias src -> (* compact *) 
-        let rec loop to_compact src = match src.state with
-        | `Alias next -> loop (src :: to_compact) next
-        | _ -> 
-            let alias = `Alias src in
-            List.iter (fun f -> f.state <- alias) to_compact; src
-        in
-        loop [f] src
-    | _ -> src 
-    end
-| _ -> f
+let src fut =            (* get [fut]'s src and compacts the alias chain. *)
+  match fut.state with
+  | `Alias src ->
+      begin match src.state with 
+      | `Alias src -> (* compact *) 
+          let rec loop to_compact src = match src.state with
+          | `Alias next -> loop (src :: to_compact) next
+          | _ -> 
+              let alias = `Alias src in
+              List.iter (fun fut -> fut.state <- alias) to_compact; src
+          in
+          loop [fut] src
+      | _ -> src 
+      end
+  | _ -> fut
 
-let state fut = match (src fut).state with
-| `Det _ | `Never as v -> v
-| `Undet _ -> `Undet
-| `Alias _ -> assert false
-    
-let await ?(timeout = max_float) f = 
-  if timeout < 0. then invalid_arg (err_invalid_timeout timeout) else
-  match (src f).state with
-  | `Det _ | `Never as v -> v
-  | `Undet _ -> 
-      let rec loop timeout f =
-        let elapsed = Runtime.step timeout in
-        match (src f).state with 
-        | `Det _ | `Never as v -> v
-        | `Undet _ -> 
-            if timeout = max_float then loop max_float f else
-            let rem = timeout -. elapsed in 
-            if rem > 0. then loop rem f else `Undet
-        | `Alias _ -> assert false
-      in
-      loop timeout f
-  | `Alias _ -> assert false
-
-let finally fn v f = 
-  let trap_finally fn v = try ignore (fn v) with
-  | e -> 
-      let bt = Printexc.get_backtrace () in 
-      Runtime.exn_trap `Finalizer e bt
+let stop_waiting_on deps =
+  let rec loop = function
+  | Dempty :: todo -> loop todo
+  | Dep (_, w) :: todo -> w := None; loop todo
+  | Dunion (deps, deps') :: todo -> loop (deps :: deps' :: todo)
+  | [] -> ()
   in
-  let f = src f in
-  match f.state with 
-  | `Det _ | `Never -> trap_finally fn v; f
-  | `Undet u -> ignore (add_waiter u (fun _ -> trap_finally fn v)); f
-  | `Alias _ -> assert false
+  loop [deps]
 
-let set_stop_wait fut fn = match fut.state with 
-| `Undet u -> u.stop_wait <- fn 
-| _ -> assert false
-
-let add_deep_abort fut dep = match fut.state with 
-| `Undet u -> u.deep_aborts <- dunion u.deep_aborts (Dabort dep) 
-| _ -> assert false 
-
-let set_abort fut fn = match fut.state with
-| `Undet u -> u.abort <- fn 
-| _ -> assert false
-
-let fut_det fut (det : [> `Det of 'a ]) = match fut.state with 
+let fut_det fut (det : [ `Det of 'a ]) = match fut.state with 
 | `Undet u ->
     fut.state <- (det :> 'a _state);
-    u.stop_wait ();
-    notify_waiters u.ws (det :> 'a set)
+    stop_waiting_on u.deps;
+    exec_waiters u.ws (det :> 'a set)
 | _ -> assert false
 
 let fut_shallow_abort fut = match fut.state with 
-| `Undet u -> 
-    fut.state <- `Never; 
-    u.stop_wait (); 
-    u.abort (); 
-    notify_waiters u.ws `Never
-| _ -> assert false 
-
-let rec abort_deep_aborts ds =                     (* TODO this is not T.R. *)
-  let rec loop = function
-  | Dempty :: todo -> loop todo
-  | Dabort fut :: todo -> 
-      begin match (src fut).state with 
-      | `Undet u -> fut_deep_abort fut; loop todo
-      | _ -> loop todo
-      end
-  | Dunion (ds, ds') :: todo -> loop (ds :: ds' :: todo)
-  | [] -> ()
-  in
-  loop [ds]
-
-and fut_deep_abort : 'a. 'a t -> unit = fun fut -> match fut.state with 
-| `Undet u -> 
-    fut.state <- `Never; 
-    u.stop_wait ();
+| `Undet u ->
+    fut.state <- `Never;
     u.abort ();
-    abort_deep_aborts u.deep_aborts;
-    notify_waiters u.ws `Never
+    stop_waiting_on u.deps;
+    exec_waiters u.ws `Never
 | _ -> assert false 
 
-let undet_state abort = 
-  { ws = Wempty; ws_adds = 0; stop_wait = nop; deep_aborts = Dempty; abort } 
 
+type wnever = Wnever : 'a waiters -> wnever (* wait on `Never, hide 'a *) 
+
+let rec abort_deps_and_notify_waiters depss notifs = match depss with 
+| deps :: rest -> 
+    let rec loop = function 
+    | Dempty :: todo -> loop todo 
+    | Dep (dep, _) :: todo ->
+        let dep = src dep in 
+        begin match (src dep).state with
+        | `Undet u -> deep_abort dep (todo :: rest) notifs
+        |  _ -> loop todo 
+        end
+    | Dunion (deps, deps') :: todo -> loop (deps :: deps' :: todo)
+    | [] -> 
+        begin match notifs with 
+        | Wnever ws :: notifs -> 
+            exec_waiters ws `Never;
+            abort_deps_and_notify_waiters rest notifs
+        | [] -> assert false
+        end
+    in
+    loop deps
+| [] -> () 
+        
+and deep_abort : 'a. 'a t -> deps list list -> wnever list -> unit =
+  fun fut depss notifs -> match fut.state with 
+  | `Undet u -> 
+      fut.state <- `Never; 
+      u.abort (); 
+      stop_waiting_on u.deps; 
+      abort_deps_and_notify_waiters 
+        ([u.deps] :: depss) ((Wnever u.ws) :: notifs)
+  | _ -> assert false 
+    
+and fut_deep_abort : 'a. 'a t -> unit = fun fut ->
+  deep_abort fut [] [] 
+
+let fut_det_trap fut fn v = try fut_det fut (`Det (fn v)) with 
+| e -> 
+    let bt = Printexc.get_backtrace () in 
+    Runtime.exn_trap `Future e bt; 
+    fut_shallow_abort fut 
+
+let det_trap fn v = try { state = `Det (fn v) }  with 
+| e ->
+    let bt = Printexc.get_backtrace () in 
+    Runtime.exn_trap `Future e bt; 
+    { state = `Never } 
+
+let undet_state abort = { ws = Wempty; ws_adds = 0; deps = Dempty; abort } 
 let undet () = { state = `Undet (undet_state nop) }
 let undet_abort abort = { state = `Undet (undet_state abort) }
 let never () = { state = `Never } 
-
-let trap_fut fn v = try fn v with
-| e -> 
-    let bt = Printexc.get_backtrace () in 
-    Runtime.exn_trap `Future e bt;
-    never ()
-
-let trap_det fn v = try `Det (fn v) with
-| e ->
-    let bt = Printexc.get_backtrace () in
-    Runtime.exn_trap `Future e bt; 
-    `Never
 
 let alias fut ~src:res =                    (* aliases [fut] to undet [res]. *)
   let fut = src fut in
@@ -343,18 +339,57 @@ let alias fut ~src:res =                    (* aliases [fut] to undet [res]. *)
           (* union waiter sets, cleanup if needed. *)
           u.ws <- wunion u.ws u'.ws;            
           u.ws_adds <- u.ws_adds + u'.ws_adds; 
-          if u.ws_adds > Runtime.cleanup_limit 
-          then (u.ws_adds <- 0; u.ws <- cleanup u.ws);
-          (* union deep aborts and concatenate abort actions *)
-          u.deep_aborts <- dunion u.deep_aborts u'.deep_aborts;
+          if u.ws_adds > Runtime.waiter_cleanup_limit
+          then (u.ws_adds <- 0; u.ws <- wcleanup u.ws);
+          (* union deps and concatenate abort actions *)
+          u.deps <- dunion u.deps u'.deps;
           u.abort <- concat_aborts u.abort u'.abort
       | _ -> assert false 
       end
   | _ -> assert false 
 
+
+(* Futures *)
+    
+let state fut = match (src fut).state with
+| `Det _ | `Never as v -> v
+| `Undet _ -> `Undet
+| `Alias _ -> assert false
+    
+let await ?(timeout = max_float) fut = 
+  if timeout < 0. then invalid_arg (err_invalid_timeout timeout) else
+  match (src fut).state with
+  | `Det _ | `Never as v -> v
+  | `Undet _ -> 
+      let rec loop timeout fut =
+        let elapsed = Runtime.step timeout in
+        match (src fut).state with 
+        | `Det _ | `Never as v -> v
+        | `Undet _ -> 
+            if timeout = max_float then loop max_float fut else
+            let rem = timeout -. elapsed in 
+            if rem > 0. then loop rem fut else `Undet
+        | `Alias _ -> assert false
+      in
+      loop timeout fut
+  | `Alias _ -> assert false
+
+let finally fn v fut = 
+  let trap_finally fn v = try ignore (fn v) with
+  | e ->
+      let bt = Printexc.get_backtrace () in 
+      Runtime.exn_trap `Finalizer e bt
+  in
+  let fut = src fut in
+  match fut.state with
+  | `Det _ | `Never -> trap_finally fn v; fut
+  | `Undet u -> ignore (add_waiter u (fun _ -> trap_finally fn v)); fut
+  | `Alias _ -> assert false
+
 (* Applicative combinators *)
 
 let ret v = { state = `Det v }
+
 let rec bind fut fn = 
   let fut = src fut in
   match fut.state with
@@ -364,9 +399,16 @@ let rec bind fut fn =
       let fnew = undet () in
       let waiter = function
       | `Never -> fut_shallow_abort fnew
-      | `Det v -> alias (trap_fut fn v) ~src:fnew
+      | `Det v -> 
+          let fut = try fn v with 
+          | e -> 
+              let bt = Printexc.get_backtrace () in 
+              Runtime.exn_trap `Future e bt; 
+              never () 
+          in
+          alias fut ~src:fnew
       in
-      waits fnew waiter ~on:fut; 
+      add_dep fnew ~on:fut waiter;
       fnew
   | `Alias _ -> assert false
     
@@ -377,54 +419,52 @@ let app ff fv =
   | `Det fn -> 
       let fv = src fv in
       begin match fv.state with 
-      | `Never -> never () 
-      | `Det v -> { state = (trap_det fn v) }
+      | `Never -> never ()
+      | `Det v -> det_trap fn v
       | `Undet _ ->
           let fnew = undet () in 
           let waiter = function 
           | `Never -> fut_shallow_abort fnew
-          | `Det v -> fut_det fnew (trap_det fn v)
+          | `Det v -> fut_det_trap fnew fn v 
           in
-          waits fnew waiter ~on:fv; 
+          add_dep fnew ~on:fv waiter;
           fnew
       | `Alias _ -> assert false
       end
-  | `Undet uf -> 
+  | `Undet _ -> 
       let fv = src fv in
       begin match fv.state with
-      | `Never -> never () 
+      | `Never -> never ()
       | `Det v ->
           let fnew = undet () in 
           let waiter = function 
           | `Never -> fut_shallow_abort fnew
-          | `Det fn -> fut_det fnew (trap_det fn v)
+          | `Det fn -> fut_det_trap fnew fn v
           in
-          waits fnew waiter ~on:ff; 
+          add_dep fnew ~on:ff waiter;
           fnew
-      | `Undet uv ->
+      | `Undet _ ->
           let fnew = undet () in
-          let waiter_f fv = function 
+          let waiter_f fv = function
           | `Never -> fut_shallow_abort fnew
           | `Det f ->
               match (src fv).state with 
               | `Undet _ -> () 
-              | `Det v -> fut_det fnew (trap_det f v)
-              | `Alias _ | `Never -> assert false 
+              | `Det v -> fut_det_trap fnew f v
+              | `Never       (* the other waiter will have removed this one *) 
+              | `Alias _ -> assert false 
           in 
           let waiter_v ff = function 
           | `Never -> fut_shallow_abort fnew
           | `Det v -> 
               match (src ff).state with 
               | `Undet _ -> () 
-              | `Det f -> fut_det fnew (trap_det f v) 
-              | `Alias _ | `Never -> assert false 
+              | `Det f -> fut_det_trap fnew f v 
+              | `Never       (* the other waiter will have removed this one *) 
+              | `Alias _ -> assert false 
           in
-(* TODO abstract like waits *)
-          let wf = add_waiter uf (waiter_f fv) in 
-          let wv = add_waiter uv (waiter_v ff) in 
-          set_stop_wait fnew (fun () -> wf := None; wv := None);
-          add_deep_abort fnew fv; 
-          add_deep_abort fnew ff;
+          add_dep fnew ff (waiter_f fv);
+          add_dep fnew fv (waiter_v ff); 
           fnew
       | `Alias _ -> assert false
       end
@@ -434,198 +474,212 @@ let map fn fut =
   let fut = src fut in 
   match fut.state with
   | `Never -> never ()
-  | `Det v -> { state = (trap_det fn v) }
+  | `Det v -> det_trap fn v
   | `Undet _ ->
       let fnew = undet () in 
       let waiter = function
       | `Never -> fut_shallow_abort fnew
-      | `Det v -> fut_det fnew (trap_det fn v)
+      | `Det v -> fut_det_trap fnew fn v
       in
-      waits fnew waiter ~on:fut; fnew
+      add_dep fnew ~on:fut waiter; 
+      fnew
   | `Alias _ -> assert false
     
 let ignore fut = 
   let fut = src fut in
   match fut.state with 
-  | `Never -> never () 
+  | `Never -> never ()
   | `Det v -> { state = `Det () } 
-  | `Undet u ->
+  | `Undet _ ->
       let fnew = undet () in 
       let waiter = function 
       | `Never -> fut_shallow_abort fnew
       | `Det _ -> fut_det fnew (`Det ())
       in
-      waits fnew waiter ~on:fut; fnew
+      add_dep fnew ~on:fut waiter; 
+      fnew
   | `Alias _ -> assert false 
     
 let fold fn acc futs = 
   let fnew = undet () in
-  let fold () =                      (* when called [fs] are all determined. *)
+  let fold () =                    (* when called [futs] are all determined. *)
     let fn' acc fut = match (src fut).state with 
     | `Det v -> fn acc v | _ -> assert false 
     in
-    fut_det fnew (trap_det (List.fold_left fn' acc) futs)
+    fut_det_trap fnew (List.fold_left fn' acc) futs
   in
   let undet = ref 0 in                        (* remaining undets in [futs]. *) 
-  let waits = ref [] in                                (* registred waiters. *)
   let waiter = function
   | `Never -> fut_shallow_abort fnew
   | `Det _ -> decr undet; if !undet = 0 then fold ()
   in
-  let rec add_waits = function 
-  | fut :: futs' -> 
-      let fut = src fut in
-      begin match fut.state with
-      | `Det _ -> add_waits futs'
+  let rec add_deps = function 
+  | dep :: deps -> 
+      let dep = src dep in
+      begin match dep.state with
+      | `Det _ -> add_deps deps
       | `Never -> fut_shallow_abort fnew
-      | `Undet u ->
-          let w = add_waiter u waiter in 
-          add_deep_abort fnew fut;
-          waits := w :: !waits; incr undet; add_waits futs'
+      | `Undet _ ->
+          incr undet;
+          add_dep fnew ~on:dep waiter; 
+          add_deps deps
       | `Alias _ -> assert false
       end
   | [] -> if !undet = 0 then fold ()
   in
-  set_stop_wait fnew (fun () -> List.iter (fun w -> w := None) !waits);
-  add_waits futs;
+  add_deps futs;
   fnew
 
 let barrier ?(set = false) futs =
   let fnew = undet () in 
   let undet = ref 0 in                        (* remaining undets in [futs]. *)
-  let waits = ref [] in                                (* registred waiters. *)
   let waiter = function 
   | `Never when not set -> fut_shallow_abort fnew
   | `Det _ | `Never -> decr undet; if !undet = 0 then fut_det fnew (`Det ())
   in
-  let rec add_waits = function 
-  | fut :: futs' -> 
-      let fut = src fut in
-      begin match fut.state with 
-      | `Det _ -> add_waits futs'
-      | `Never -> 
-          if set then add_waits futs' else fut_shallow_abort fnew
-      | `Undet u -> 
-          let w = add_waiter u waiter in 
-          add_deep_abort fnew fut;
-          waits := w :: !waits; incr undet; add_waits futs'
+  let rec add_deps = function 
+  | dep :: deps -> 
+      let dep = src dep in
+      begin match dep.state with 
+      | `Det _ -> add_deps deps
+      | `Never -> if set then add_deps deps else fut_shallow_abort fnew
+      | `Undet _ -> 
+          incr undet; 
+          add_dep fnew ~on:dep waiter;
+          add_deps deps
       | `Alias _ -> assert false
       end
   | [] -> if !undet = 0 then fut_det fnew (`Det ())
   in
-  set_stop_wait fnew (fun () -> List.iter (fun w -> w := None) !waits);
-  add_waits futs; 
+  add_deps futs; 
   fnew
     
 let sustain fut fut' =
-  let fnew = undet () in
-  let use_fut' () = 
-    let fut' = src fut' in
-    match fut'.state with
-    | `Det _ as det -> fut_det fnew det 
-    | `Never -> fut_shallow_abort fnew
-    | `Undet _ ->
-        let waiter_fut' s = fut_det fnew s in
-        waits fnew waiter_fut' ~on:fut'
-    | `Alias _ -> assert false
-  in
-  let waiter_fut = function 
-  | `Never -> use_fut' () 
+  let waiter_fut' fnew = function 
+  | `Never -> fut_shallow_abort fnew 
   | `Det _ as det -> fut_det fnew det
   in
   let fut = src fut in
-  begin match fut.state with 
-  | `Det _  as det -> fut_det fnew det
-  | `Never -> use_fut' ()
-  | `Undet _ -> waits fnew waiter_fut ~on:fut
-  | `Alias _ -> assert false
-  end; 
-  fnew
-
-let first fut fut' =
-  let fnew = undet () in 
-  let waiter other = function
-  | `Never ->
-      begin match (src other).state with 
-      | `Never -> 
-          (* N.B. if fut = fut' this is not problematic as the 
-             first of [w] or [w'] (see below) that calls 
-             fut_shallow_abort, will have the effect of stopping the 
-             other waiter. So fut_shallow_abort is really only called once. *) 
-          fut_shallow_abort fnew
-      | `Undet _ -> ()
-      | `Alias _ 
-      | `Det _ -> 
-          (* If the other future determined its waiter called [fut_det] which
-             will have the effect of stopping this waiter, so this case is 
-             impossible. *)
-          assert false 
+  match fut.state with 
+  | `Det _  -> fut
+  | `Never -> 
+      let fut' = src fut' in 
+      begin match fut'.state with 
+      | `Det _ | `Never -> fut'
+      | `Undet _ ->
+          let fnew = undet () in
+          add_dep fnew ~on:fut' (waiter_fut' fnew);
+          fnew
+      | `Alias _ -> assert false
       end
-  | `Det v -> fut_det fnew (`Det (v, other))
-  in
+  | `Undet _ -> 
+      let fnew = undet () in
+      let waiter_fut = function 
+      | `Det _ as det -> fut_det fnew det
+      | `Never ->
+          let fut' = src fut' in 
+          begin match fut'.state with 
+          | `Det _ as det -> fut_det fnew det
+          | `Never -> fut_shallow_abort fnew
+          | `Undet _ -> add_dep fnew ~on:fut' (waiter_fut' fnew)
+          | `Alias _ -> assert false
+          end
+      in
+      add_dep fnew ~on:fut waiter_fut;
+      fnew
+  | `Alias _ -> assert false
+    
+let first fut fut' =
   let fut = src fut in
-  begin match fut.state with 
-  | `Det v -> fut_det fnew (`Det (v, fut'))
+  match fut.state with
+  | `Det v -> { state = `Det (v, fut') }
   | `Never -> 
       let fut' = src fut' in
       begin match fut'.state with
-      | `Det v -> fut_det fnew (`Det (v, fut))
-      | `Never -> fut_shallow_abort fnew 
-      | `Undet _ -> waits fnew (waiter fut) ~on:fut'
+      | `Det v -> { state = `Det (v, fut) }
+      | `Never -> never ()
+      | `Undet _ -> 
+          let fnew = undet () in
+          let waiter = function 
+          | `Never -> fut_shallow_abort fnew 
+          | `Det v -> fut_det fnew (`Det (v, fut)) 
+          in
+          add_dep fnew ~on:fut' waiter; 
+          fnew
       | `Alias _ -> assert false
       end
-  | `Undet u ->
+  | `Undet _ ->
       let fut' = src fut' in
       begin match fut'.state with
-      | `Det v -> fut_det fnew (`Det (v, fut))
-      | `Never -> waits fnew (waiter fut') ~on:fut
-      | `Undet u' -> 
-          let w = add_waiter u (waiter fut') in 
-          let w' = add_waiter u' (waiter fut) in
-          set_stop_wait fnew (fun () -> w := None; w' := None);
-          add_deep_abort fnew fut; 
-          add_deep_abort fnew fut'
+      | `Det v -> { state = `Det (v, fut) }
+      | `Never -> 
+          let fnew = undet () in 
+          let waiter = function 
+          | `Never -> fut_shallow_abort fnew 
+          | `Det v -> fut_det fnew (`Det (v, fut')) 
+          in
+          add_dep fnew ~on:fut waiter; 
+          fnew
+      | `Undet _ -> 
+          let fnew = undet () in
+          let waiter other = function
+          | `Det v -> fut_det fnew (`Det (v, other))
+          | `Never ->
+              begin match (src other).state with 
+              | `Never -> 
+                  (* N.B. if fut = fut' this is not problematic as the 
+                     first waiter will call fut_shallow_abort which will
+                     stop the other waiter. So fut_shallow_abort is really 
+                     only called once. *) 
+                  fut_shallow_abort fnew
+              | `Undet _ -> ()
+              | `Det _ (* If the other future determined its waiter called 
+                          [fut_det] which will have the effect of stopping 
+                          this waiter, so this case is impossible. *)
+              | `Alias _ ->
+                  assert false 
+              end
+          in
+          add_dep fnew ~on:fut (waiter fut'); 
+          add_dep fnew ~on:fut' (waiter fut);
+          fnew
       | `Alias _ -> assert false
       end
   | `Alias _ -> assert false
-  end; 
-  fnew
-        
+    
 let firstl futs =
-  let rec rem to_rem acc = function           (* removes [to_rem] from list. *)
-  | fut :: futs -> 
+  let rec remove to_rem acc = function        (* removes [to_rem] from list. *)
+  | fut :: futs ->
       if fut == to_rem then List.rev_append acc futs else
-      rem to_rem (fut :: acc) futs
+      remove to_rem (fut :: acc) futs
   | [] -> assert false 
   in
   let fnew = undet () in 
   let undet = ref 0 in                        (* remaining undets in [futs]. *)
-  let waits = ref [] in                                (* registred waiters. *)
   let waiter fut = function
   | `Never -> decr undet; if !undet = 0 then fut_shallow_abort fnew
-  | `Det v -> decr undet; fut_det fnew (`Det (v, rem fut [] futs))
+  | `Det v -> decr undet; fut_det fnew (`Det (v, remove fut [] futs))
   in
-  let rec add_waits = function 
-  | fut :: futs' ->
-      let fut = src fut in 
-      begin match fut.state with 
-      | `Det v -> fut_det fnew (`Det (v, rem fut [] futs))
-      | `Never -> add_waits futs'
+  let rec add_deps = function 
+  | dep :: deps ->
+      let dep = src dep in
+      begin match dep.state with 
+      | `Det v -> fut_det fnew (`Det (v, remove dep [] futs))
+      | `Never -> add_deps deps (* TODO what's that bizness ? *)
       | `Undet u ->
-          let w = add_waiter u (waiter fut) in 
-          add_deep_abort fnew fut;
-          incr undet; waits := w :: !waits; add_waits futs'
+          incr undet; 
+          add_dep fnew ~on:dep (waiter dep);
+          add_deps deps
       | `Alias _ -> assert false
       end
   | [] -> if !undet = 0 then fut_shallow_abort fnew
   in
-  set_stop_wait fnew (fun () -> List.iter (fun w -> w := None) !waits);
-  add_waits futs;
+  add_deps futs;
   fnew
 
 (* Effectful combinators *)
 
-let rec abort fut = 
+let rec abort fut =
   let fut = src fut in
   match fut.state with
   | `Det _ | `Never -> ()
@@ -633,17 +687,23 @@ let rec abort fut =
   | `Alias _ -> assert false 
 
 let protect fut = 
-  match (src fut).state with 
-  | `Det _ | `Never -> fut 
+  let fut = src fut in
+  match fut.state with 
+  | `Det _ | `Never -> fut
   | `Undet u -> 
       let fnew = undet () in 
-      let waiter fut = function 
+      (* We register a waiter in [fut]'s undet but make a fake dependency so 
+         that a deep abort on [fnew] will not touch [fut]. *) 
+      let waiter = function 
       | `Never -> fut_shallow_abort fnew 
       | `Det _ as det -> fut_det fnew det 
       in
-      let w = add_waiter u (waiter fut) in 
-      set_stop_wait fnew (fun () -> w := None); 
-      (* no deep_aborts, this cuts the reverse dependency. *) 
+      let w = add_waiter u waiter in
+      let fake_dep = Dep ({ state = `Never }, w) in
+      begin match fnew.state with 
+      | `Undet u' -> u'.deps <- fake_dep 
+      | _ -> assert false
+      end; 
       fnew
   | `Alias _ -> assert false
 
@@ -658,39 +718,37 @@ let pick fut fut' =
       | `Undet _ -> fut_deep_abort fut'; fut
       | `Alias _ -> assert false
       end
-  | `Undet u -> 
+  | `Undet _ ->
       let fut' = src fut' in 
       begin match fut'.state with
       | `Never -> fut
       | `Det _ -> fut_deep_abort fut; fut'
-      | `Undet u' ->  
+      | `Undet _ ->  
           let fnew = undet () in
           let waiter other = function
-          | `Never -> 
-              begin match (src other).state with 
-              | `Never -> fut_shallow_abort fut
+          | `Never ->
+              let other = src other in
+              begin match other.state with 
+              | `Never -> fut_shallow_abort fnew
               | `Undet _ -> ()
-              | `Det _ -> 
-                  (* The other waiter would have removed this waiter. *)
-                  assert false 
+              | `Det _  (* The other waiter would have removed this waiter. *)
               | `Alias _ -> assert false
               end
           | `Det _ as det ->
-              begin match (src other).state with
+              let other = src other in
+              begin match other.state with
               | `Never -> fut_det fnew det
-              | `Undet _ -> 
+              | `Undet _ ->
                   (* The order is important here, determining fnew first
                      will remove the waiters it has in [other]. *) 
                   fut_det fnew det; fut_deep_abort other
-              | `Alias _ | `Det _ -> assert false
+              | `Det _ (* The other waiter would have removed this waiter. *)
+              | `Alias _ -> assert false 
               end
           in  
-          let w = add_waiter u (waiter fut') in 
-          let w' = add_waiter u' (waiter fut) in 
-          set_stop_wait fnew (fun () -> w := None; w' := None);
-          add_deep_abort fnew fut; 
-          add_deep_abort fnew fut';
-          fnew
+          add_dep fnew ~on:fut (waiter fut'); 
+          add_dep fnew ~on:fut' (waiter fut); 
+          fnew 
       | `Alias _ -> assert false
       end
   | `Alias _ -> assert false 
@@ -722,12 +780,16 @@ type queue = Queue.t
 exception Never
   
 let apply ?(queue = Queue.concurrent) ?abort f v =
-  let abort = match abort with None -> None 
-  | Some a -> Some (fun () -> a := true) 
+  let abort = match abort with 
+  | None -> None 
+  | Some a -> Some (fun () -> a := true) (* set the user reference cell *) 
   in
   let p = promise ?abort () in
   let work () = 
-    try let r = f v in Runtime.action (fun () -> set p (`Det r)) with 
+    try 
+      let r = f v in 
+      Runtime.action (fun () -> set p (`Det r)) 
+    with 
     | Never -> Runtime.action (fun () -> set p `Never)
     | exn ->
         let bt = Printexc.get_backtrace () in 

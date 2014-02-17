@@ -48,9 +48,10 @@ val await : ?timeout:float -> 'a t -> 'a state
     @raise Invalid_argument if [timeout] is negative. *)
 
 val finally : ('a -> 'b) -> 'a -> 'c t -> 'c t
-(** [finally fn v f] is [f] but [fn v] is called (and its result ignored) 
-    whenever [f] is set. If [fn v] raises an exception it is reported
-    to the exception trap specified with {!Runtime.set_exn_trap}. *)
+(** [finally fn v f] is [f] but [fn v] is called (and its result
+    ignored) whenever [f] is set and immediately if [f] is already set
+    at call time. If [fn v] raises an exception it is reported to the
+    exception trap specified with {!Runtime.set_exn_trap}. *)
 
 (** {2:applicative Applicative combinators} 
 
