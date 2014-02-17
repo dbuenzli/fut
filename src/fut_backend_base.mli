@@ -59,6 +59,9 @@ module type Backend = sig
   val name : string
   val start : unit -> unit
   val stop : unit -> unit
+  val step : timeout:float -> float  
+  (** [timeout] is guaranteed to be equal or greater than [0.], if it is 
+      equal to max_float, means unbounded wait. *)
 
   (** {1 Actions} *) 
 
@@ -80,9 +83,6 @@ module type Backend = sig
 
   val fd_action : [`R | `W] -> Unix.file_descr -> (bool -> unit) -> unit
   val fd_close : Unix.file_descr -> unit
-  val step : timeout:float -> float  
-  (** [timeout] is guaranteed to be equal or greater than [0.], if it is 
-      equal to max_float, means unbounded wait. *)
     
   (** {1 Queues} *) 
     

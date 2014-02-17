@@ -43,10 +43,16 @@ val call : ('a -> 'b) -> 'a -> [> 'b result] Fut.t
 (** {1 Signals} *)
     
   val signal : int -> int Fut.t
-(** [signal s] determines with [s] when the signal [s] is received.
-    
-      {b Warning.} This replaces any handler set with {!Sys.set_signal}. *)
-      
+  (** [signal s] determines with [s] the next time the signal [s] is 
+      received by the program.
+
+      {b Warning.} The first time [signal s] is called for a given [s]
+      [Fut] overwrites any handler that could be already installed by
+      {!Sys.signal} for that signal. Conversly if any other part of
+      the program overwrites the handler installed by [Fut] for [s]
+      don't expect the futures returned by [signal s] to ever
+      determine. *)
+
 (** {1 File descriptors} *)
       
 val nonblock_stdio : unit -> [> unit result ] Fut.t

@@ -6,8 +6,6 @@
 
 (* select(2) backend *)
 
-let name = "fut.select"  
-
 (* Timer actions *) 
 
 (* FIXME. This should be a monotonic clock, gettimeofday () can run 
@@ -166,77 +164,111 @@ let exec_fd_actions timeout =
       let bt = Printexc.get_backtrace () in
       Fut_backend_base.exn_trap `Backend e bt
         
-(* Unblock select () via pipe *) 
-        
-let unblock_r = ref Unix.stdin  (* dummy for init *) 
-let unblock_w = ref Unix.stdout (* dummy for init *)          
-    
-let rec unblock () =                               (* write on !unblock_w *) 
-  try ignore (Unix.single_write !unblock_w "\x2A" 0 1) with
-  | Unix.Unix_error (Unix.EINTR, _, _) -> unblock ()
-  | Unix.Unix_error ((Unix.EAGAIN | Unix.EWOULDBLOCK), _, _) -> ()
-  | e ->
-      let bt = Printexc.get_backtrace () in 
-      Fut_backend_base.exn_trap `Backend e bt
-        
-let rec unblocked _ =                     (* consume data from !unblock_r *) 
-  try ignore (Unix.read !unblock_r "0123456789" 0 10); unblocked true with
-  | Unix.Unix_error (err, _, _) as e -> match err with 
-  | Unix.EINTR -> unblocked true 
-  | Unix.EAGAIN | Unix.EWOULDBLOCK -> fd_action `R !unblock_r unblocked 
-  | _ ->
-      let bt = Printexc.get_backtrace () in 
-      Fut_backend_base.exn_trap `Backend e bt; 
-      fd_action `R !unblock_r unblocked
-        
-let start_unblock () =
-  let pipe () = 
-    let r, w = Unix.pipe () in
-    Unix.set_nonblock r; Unix.set_nonblock w;
-    unblock_r := r; unblock_w := w; 
-    fd_action `R r unblocked
-  in
-  Fut_backend_base.trap `Backend pipe ()
-    
-let stop_unblock () = 
-  let rec close rfd dummy =
-    if !rfd = dummy then () else 
-    try Unix.close !rfd; rfd := dummy
-    with Unix.Unix_error (Unix.EINTR,_,_) -> close rfd dummy
-  in
-  Fut_backend_base.trap `Backend (close unblock_r) Unix.stdin; 
-  Fut_backend_base.trap `Backend (close unblock_w) Unix.stdout
-    
+(* Unblock select () via self-pipe. *) 
+
+module Unblock : sig
+  val start : unit -> unit  (* call before any call. *) 
+  val stop : unit -> unit   (* call to cleanup, no call except [start] after *)
+  val asap : unit -> unit   (* call [asap] to unblock select(2). *) 
+end = struct
+  
+  let unblock_r = ref Unix.stdin  (* dummy for init *) 
+  let unblock_w = ref Unix.stdout (* dummy for init *)          
+      
+  let rec asap () =                                   (* write on !unblock_w *) 
+    try ignore (Unix.single_write !unblock_w "\x2A" 0 1) with
+    | Unix.Unix_error (Unix.EINTR, _, _) -> asap ()
+    | Unix.Unix_error ((Unix.EAGAIN | Unix.EWOULDBLOCK), _, _) -> 
+        () (* TODO why ? *)
+    | e ->
+        let bt = Printexc.get_backtrace () in 
+        Fut_backend_base.exn_trap `Backend e bt
+          
+  let rec unblocked _ =                     (* consume data from !unblock_r *) 
+    try 
+      ignore (Unix.read !unblock_r "0123456789" 0 10); 
+      unblocked true (* TODO this is not T.R. *) 
+    with
+    | Unix.Unix_error (err, _, _) as e -> match err with 
+    | Unix.EINTR -> unblocked true 
+    | Unix.EAGAIN | Unix.EWOULDBLOCK -> fd_action `R !unblock_r unblocked 
+    | _ ->
+        let bt = Printexc.get_backtrace () in 
+        Fut_backend_base.exn_trap `Backend e bt; 
+        fd_action `R !unblock_r unblocked
+          
+  let start () = (* create self-pipe and register a read fd action with it. *)
+    let pipe () = 
+      let r, w = Unix.pipe () in
+      Unix.set_nonblock r; unblock_r := r; 
+      Unix.set_nonblock w; unblock_w := w; 
+      fd_action `R r unblocked
+    in
+    Fut_backend_base.trap `Backend pipe ()
+      
+  let stop () =                        (* close the self-pipe if it exists. *) 
+    let rec close fd_ref dummy =
+      if !fd_ref = dummy then () else 
+      try Unix.close !fd_ref; fd_ref := dummy with 
+      | Unix.Unix_error (Unix.EINTR, _, _) -> close fd_ref dummy
+      | e -> 
+          let bt = Printexc.get_backtrace () in 
+          Fut_backend_base.exn_trap `Backend e bt
+    in
+    Fut_backend_base.trap `Backend (close unblock_r) Unix.stdin; 
+    Fut_backend_base.trap `Backend (close unblock_w) Unix.stdout
+end
+
 (* Signal actions *)
 
-module Sig = struct
-  type t = int
-  let compare : int -> int -> int = compare
-end
+module Signal_actions : sig
+  val start : unit -> unit 
+  val stop : unit -> unit 
+  val add : int -> (unit -> unit) -> unit 
+  val exec : unit -> unit
+end = struct  
 
-module Sigmap = struct
-  include Map.Make (Sig)
-  let add_action m s a = 
-    let acts = a :: try find s m with Not_found -> [] in 
-    add s acts m
+  module Signal = struct
+    type t = int
+    let compare : int -> int -> int = compare
+  end
+  
+  module Sset = Set.Make (Signal)
+  module Smap = struct
+    include Map.Make (Signal)
+    let add_action m s action = 
+      let actions = action :: try find s m with Not_found -> [] in 
+      add s actions m
+  end
+  
+  let signaled = ref Sset.empty                (* set of delivered signals. *) 
+  let handled_signals = ref Sset.empty       (* signals handled by backend. *)
+  let signal_actions = ref Smap.empty    (* actions to perform for a signal. *) 
+      
+  let start () = ()
+  let stop () =
+    let restore_default s = Sys.set_signal s Sys.Signal_default in
+    Sset.iter restore_default !handled_signals; 
+    signaled := Sset.empty;
+    handled_signals := Sset.empty; 
+    signal_actions := Smap.empty
+                        
+  let add s a = 
+    signal_actions := Smap.add_action !signal_actions s a;
+    if Sset.mem s !handled_signals then () else 
+    let h s = signaled := Sset.add s !signaled; Unblock.asap () in
+    handled_signals := Sset.add s !handled_signals;
+    ignore (Sys.set_signal s (Sys.Signal_handle h))
+      
+  let exec () = 
+    let exec s =
+      let actions = try Smap.find s !signal_actions with Not_found -> [] in
+      signal_actions := Smap.remove s !signal_actions;
+      List.iter (fun a -> Fut_backend_base.trap `Signal_action a ()) actions
+    in
+    Sset.iter exec !signaled; 
+    signaled := Sset.empty
 end
-    
-let sigs = ref []                                    (* delivered signals. *) 
-let sigactions = ref Sigmap.empty
-let stop_signal_actions () = sigs := []; sigactions := Sigmap.empty
-let signal_action s a = 
-  sigactions := Sigmap.add_action !sigactions s a;
-  let h s = sigs := s :: !sigs; unblock () in
-  ignore (Sys.signal s (Sys.Signal_handle h))
-    
-let exec_signal_actions () = 
-  let exec s =
-    let acts = try Sigmap.find s !sigactions with Not_found -> [] in
-    sigactions := Sigmap.remove s !sigactions;
-    List.iter (fun a -> Fut_backend_base.trap `Signal_action a ()) acts
-  in
-  let ss = !sigs in
-  sigs := []; List.iter exec ss
     
 (* Runtime actions *)
     
@@ -245,7 +277,8 @@ let actions = ref []
 let stop_runtime_actions () = actions := []
 let action a = 
   Mutex.lock am; 
-  actions := a :: !actions; unblock (); 
+  actions := a :: !actions; 
+  Unblock.asap ();
   Mutex.unlock am
     
 let exec_runtime_actions () = 
@@ -255,24 +288,32 @@ let exec_runtime_actions () =
   Mutex.unlock am; 
   List.iter (fun a -> Fut_backend_base.trap `Runtime_action a ()) 
     (List.rev acts)
+
+(* Implement Fut_backend signature *) 
+
+let name = "fut.select"  
     
-(* Start, stop and step the runtime *)
-    
-let start () = start_timer_actions (); start_unblock ()
+let start () = 
+  Signal_actions.start ();
+  start_timer_actions (); 
+  Unblock.start ()
+
 let stop () = 
   stop_fd_actions ();
-  stop_signal_actions ();
+  Signal_actions.stop ();
   stop_timer_actions (); 
   stop_runtime_actions (); 
-  stop_unblock ()
+  Unblock.stop ()
 
 let step ~timeout = 
   let start = now () in
   exec_fd_actions timeout;
-  exec_signal_actions ();
+  Signal_actions.exec ();
   exec_timer_actions ();
   exec_runtime_actions ();
   now () -. start 
+
+let signal_action = Signal_actions.add 
 
 (* Queues *)  
 

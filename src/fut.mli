@@ -385,7 +385,8 @@ module Runtime : sig
   (** {2 Signal actions} *)
 
   val signal_action : int -> (unit -> unit) -> unit
-  (** [signal_action s a] executes [a ()] whenever signal [s] is received. *)
+  (** [signal_action s a] executes [a ()] whenever 
+      signal [s] is received. *)
 
   (** {2 Timer actions} *)
 
