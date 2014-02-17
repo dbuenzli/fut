@@ -6,6 +6,9 @@
 
 open Fut.Ops
 open Testing
+
+(* Testing that loops don't leak and don't blow the stack. *) 
+
   
 (* Immediate, should not blow the stack. *)
 
@@ -40,7 +43,7 @@ let vouillon_loop () =
     (yield () >>= fun () -> loop (n - 1))
   in
   let l = loop 50_000_000 in
-  is_undet l; run (); is_det l 0
+  is_undet l; run () ; is_det l 0
 
 (* Picking, here the waiters of [fut] may grow unbound, if there is
    no provision for compacting aborted waiters. 
@@ -57,7 +60,7 @@ let pick_loop () =
   is_never fut; is_det l 0
 
 let suite () =
-  log "Testing leaks (witness constant memory usage with top)\n";
+  log "Testing loops (witness constant memory usage with top)\n";
   simple_loop ();
   vouillon_loop ();
   pick_loop ();

@@ -11,7 +11,6 @@ let string_of_file : string -> string Fut.t =
     let count = !count in
     let d = 2. +. Random.float 3. in
     Printf.printf "Create %s: %d %gs\n%!" file count d;
-    fun () ->
     Fut.tick d >>= fun () ->             (* simulate taking time. *) 
     Fut.ret (str "%d time:%g" count d)
 (* fun file ->

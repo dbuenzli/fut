@@ -8,7 +8,7 @@ let str = Printf.sprintf
 
 let suites = 
   [ `Base, Test_base.suite;
-    `Leaks, Test_leaks.suite; ]
+    `Loops, Test_loops.suite; ]
 
 let suite_ids = List.map fst suites  
 
@@ -16,10 +16,10 @@ let tests suite_ids =
   let test id = (List.assoc id suites) () in
   List.iter test suite_ids;
   Testing.log "All tests suceeded.\n"
-
+    
 let main () = 
   let sid_to_string = function 
-  | `Base -> "`base'" | `Leaks -> "`leaks'" 
+  | `Base -> "`base'" | `Loops -> "`loops'" 
   in
   let usage = 
     let suites = String.concat ", " (List.map sid_to_string suite_ids) in
@@ -33,7 +33,7 @@ let main () =
   let options = [] in
   let anon = function 
   | "base" -> add_suite `Base 
-  | "leaks" -> add_suite `Leaks 
+  | "loops" -> add_suite `Loops 
   | s -> raise (Arg.Bad (str "no test suite named `%s'" s)) 
   in
   Arg.parse (Arg.align options) anon usage;
