@@ -38,6 +38,10 @@ val trap : exn_ctx -> ('a -> unit) -> 'a -> unit
 
 (** {1 Backend tools} *)
 
+val err_invalid_worker_count : int -> string
+(** [err_invalid_worker_count n] is a string to raise [Invalid_argument]
+    whenever {!set_worker_count} is called with [n < 0]. *)
+
 (** {2 Queues} *) 
 
 val queue_auto_label : unit -> string 
@@ -82,21 +86,31 @@ module type Backend = sig
   val fd_action : [`R | `W] -> Unix.file_descr -> (bool -> unit) -> unit
   val fd_close : Unix.file_descr -> unit
     
+  (** {1 Workers} *) 
+
+  val worker_count : unit -> int 
+  (** See {!Fut.Runtime.worker_count}. *) 
+    
+  val set_worker_count : int -> unit 
+  (** See {!Fut.Runtime.set_worker_count}. *)
+
   (** {1 Queues} *) 
     
   module Queue : sig
     type t 
+    (** See {!Fut.queue}. *) 
+
     val concurrent : t 
+    (** See {!Fut.Queue.concurrent}. *) 
+
     val create : ?label:string -> unit -> t 
+    (** See {!Fut.Queue.create}. *) 
+
     val label : t -> string
-    val add_work : t -> (unit -> unit) -> unit
-      
-    (** {1 Workers} *) 
-      
-    val worker_count : unit -> int 
-    val set_worker_count : int -> unit 
-    val ensure_worker : unit -> unit 
-      
+    (** See {!Fut.Queue.label}. *) 
+
+    val add_work : t -> (unit -> unit) -> unit      
+    (** TODO *)
   end
 end
 

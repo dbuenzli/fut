@@ -10,25 +10,27 @@ let name = "fut.jsoo"
 
 let start () = ()
 let stop () = ()
+let step ~timeout = failwith "TODO"
 let action a = failwith "TODO"
 let signal_action s a = failwith "TODO"
 let timer_action t a = failwith "TODO"
 let fd_action state fd a = failwith "TODO"
 let fd_close fd = failwith "TODO"
-let step ~timeout = failwith "TODO"
+let worker_count () = failwith "TODO"
+let set_worker_count count = 
+  if count < 0 
+  then invalid_arg (Fut_backend_base.err_invalid_worker_count count)
+  else
+  failwith "TODO"
     
 module Queue = struct
   type t = unit
   let concurrent = ()
-
   let create ?(label = Fut_backend_base.queue_auto_label ()) () = 
     failwith "TODO"
       
   let label q = failwith "TODO"
   let add_work q w = failwith "TODO"
-  let worker_count () = failwith "TODO"
-  let set_worker_count count = failwith "TODO"
-  let ensure_worker () = failwith "TODO"    
 end
 
 (*---------------------------------------------------------------------------

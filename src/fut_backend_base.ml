@@ -64,6 +64,10 @@ let trap ctx f v = try f v with
     let bt = Printexc.get_raw_backtrace () in 
     exn_trap ctx exn bt
 
+(* Misc *)
+
+let err_invalid_worker_count c = str "worker count must be positive (%d)" c
+
 (* Queues *)       
 
 let queue_auto_label = 
@@ -84,16 +88,14 @@ module type Backend = sig
   val timer_action : float -> (abort -> (float -> unit) * 'a) -> 'a
   val fd_action : [`R | `W] -> Unix.file_descr -> (bool -> unit) -> unit
   val fd_close : Unix.file_descr -> unit
-
+  val worker_count : unit -> int 
+  val set_worker_count : int -> unit 
   module Queue : sig
     type t 
     val concurrent : t 
     val create : ?label:string -> unit -> t 
     val label : t -> string
     val add_work : t -> (unit -> unit) -> unit      
-    val worker_count : unit -> int 
-    val set_worker_count : int -> unit 
-    val ensure_worker : unit -> unit 
   end
 end
 

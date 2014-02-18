@@ -7,7 +7,6 @@
 let str = Printf.sprintf 
 
 let err_promise_set = str "promise is already set" 
-let err_invalid_worker_count c = str "worker count must be positive (%d)" c
 let err_invalid_timeout t = str "timeout value must be positive (%f)" t
 
 let nop () = ()
@@ -193,11 +192,6 @@ module Runtime = struct
 
   include Fut_backend_base
   include Fut_backend
-
-  let worker_count = Queue.worker_count
-  let set_worker_count count = 
-    if count < 0 then invalid_arg (err_invalid_worker_count count) else
-    Queue.set_worker_count count
                            
   let () = 
     Fut_backend.start (); 
@@ -833,7 +827,6 @@ let apply ?(queue = Queue.concurrent) ?abort f v =
         in
         Runtime.action a        
   in
-  Queue.ensure_worker ();
   Queue.add_work queue work;
   future p
 

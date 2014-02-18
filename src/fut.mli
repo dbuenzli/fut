@@ -354,22 +354,7 @@ module Runtime : sig
   val pp_exn_info : Format.formatter -> exn_info -> unit
   (** [pp_exn_info ppf i] prints an unspecified representation of [i]
       on [ppf]. *)
-  
-  (** {1 Workers} 
-
-      {b Note.} Usually a worker corresponds to a system thread, but 
-      the exact semantics is left to the backend. *)
     
-  val worker_count : unit -> int 
-  (** [thread_count] is the number of workers used for future queues. *)
-
-  val set_worker_count : int -> unit
-  (** [set_worker_count n] sets the number of workers (usually threads) used 
-      for worker queues to [n]. 
-
-      {b Note.} Calling this function explicitely with [n > 0] makes the 
-      program multithreaded. *)
-  
   (** {1 Actions} *)
 
   type abort = unit -> unit 
@@ -416,8 +401,35 @@ module Runtime : sig
 
   val fd_close : Unix.file_descr -> unit
   (** TODO *) 
-end
 
+  (** {1 Workers} 
+
+      {b Note.} Most of the time a worker maps to a system thread, but
+      the exact semantics is backend dependent. Workers are typically
+      used to determine the future of futures queues.
+
+      {b Threads.} If a backend uses threads it guarantees
+      that the number of threads is [0] before any call is made 
+      to {!Fut.apply} or {!set_worker_count}. This allows to 
+      fork TODO we need more to be able to fork. *)
+    
+  val worker_count : unit -> int 
+  (** [worker_count ()] is the number of workers used by the backend. *)
+
+  val set_worker_count : int -> unit
+  (** [set_worker_count n] sets the number of workers to [n]. 
+      
+      @raise Invalid_argument if [n] is negative.
+      
+      {b Note.} Clients don't need to call this function explicitely, 
+      backends will automatically adjust workers once {!Fut.apply}
+      is called. Also if the number of workers is set to [0], 
+      a new call to {!Fut.apply} may change the worker count again.
+
+      {b Warning.} In most backends calling this function explicitely 
+      with [n > 0] makes the program multithreaded.. *)
+
+end
 
 (** {1:basics Basics} 
     

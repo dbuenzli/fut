@@ -368,17 +368,6 @@ module Queue = struct               (* work queues over a pool of threads. *)
     try Mutex.lock m; let v = f x in Mutex.unlock m; v 
     with e -> (Mutex.unlock m; raise e)
               
-  let add_work q work =                     (* assert [work] must not raise. *)
-    let add q work =
-      Queue.add work q.q; 
-      if not q.busy || q == concurrent then begin 
-        let no_queue_before = not (queue_waiting ()) in 
-        schedule_queue q;
-        if no_queue_before then wakeup_workers ();
-      end
-    in
-    with_scheduler (add q) work
-      
   let workers = ref 0                                  (* number of workers. *)
   let excess = ref 0                           (* number of workers to kill. *)
   let worker () =                                            (* worker loop. *)
@@ -394,10 +383,13 @@ module Queue = struct               (* work queues over a pool of threads. *)
         with_scheduler reschedule_queue q
       done
     with Exit -> ()
-                 
+             
   let default_worker_count = 4
   let worker_count () = !workers
   let set_worker_count count = 
+    if count < 0 
+    then invalid_arg (Fut_backend_base.err_invalid_worker_count count) 
+    else 
     let aux count = match count - !workers with 
     | 0 -> () 
     | n when n > 0 -> 
@@ -408,10 +400,22 @@ module Queue = struct               (* work queues over a pool of threads. *)
         wakeup_workers () (* to kill some *)
     in
     with_scheduler aux count
-      
-  let ensure_worker () = 
-    if !workers = 0 then set_worker_count default_worker_count
+    
+  let add_work q work =                     (* assert [work] must not raise. *)
+    let add q work =
+      Queue.add work q.q; 
+      if not q.busy || q == concurrent then begin 
+        let no_queue_before = not (queue_waiting ()) in 
+        schedule_queue q;
+        if no_queue_before then wakeup_workers ();
+      end
+    in
+    if !workers = 0 then set_worker_count default_worker_count;
+    with_scheduler (add q) work
 end
+
+let worker_count = Queue.worker_count
+let set_worker_count = Queue.set_worker_count
 
 (*---------------------------------------------------------------------------
    Copyright (c) 2014 Daniel C. Bünzli.
