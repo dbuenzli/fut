@@ -10,7 +10,7 @@ open Fut.Ops;;
 open Testing;;
 
 let finally () = 
-  log "* Test finally\n"; 
+  log_test "Test finally"; 
   let called = ref 0 in 
   let finally v = incr called; assert (!called == v) in 
   ignore (Fut.finally finally 1 (Fut.ret ())); 
@@ -33,19 +33,35 @@ let finally () =
   ()
     
 let never () = 
-  log "* Test never\n";
+  log_test "Test never";
   is_never (Fut.never ());
   ()
 
 let ret () = 
-  log "* Test ret\n";
+  log_test "Test ret";
   is_det (Fut.ret ()) ();
   is_det (Fut.ret 4) 4;
   is_det (Fut.ret "bla") "bla";
   ()
 
+let recover () = 
+  log_test "Test recover"; 
+  is_det Fut.(recover (ret 4)) (`Det 4); 
+  is_det Fut.(recover (never ())) `Never;
+  let p = Fut.promise () in
+  let r = Fut.(recover (future p)) in 
+  is_undet r; 
+  Fut.set p (`Det "Hey"); 
+  is_det r (`Det "Hey"); 
+  let p = Fut.promise () in
+  let r = Fut.(recover (future p)) in
+  is_undet r; 
+  Fut.set p `Never; 
+  is_det r `Never; 
+  ()
+  
 let bind () = 
-  log "* Test bind\n";
+  log_test "Test bind";
   is_det (Fut.ret 3 >>= Fut.ret) 3;
   is_never (Fut.ret () >>= Fut.never);
   is_never (Fut.never () >>= Fut.ret);
@@ -73,7 +89,7 @@ let bind () =
   ()
 
 let bind_loop () = 
-  log "* Test bind loop\n"; 
+  log_test "Test bind loop"; 
   let p = ref (Fut.promise ()) in 
   let resume () = Fut.set !p (`Det ()) in
   let yield () = p := Fut.promise (); Fut.future !p in 
@@ -89,7 +105,7 @@ let bind_loop () =
   ()
 
 let app () = 
-  log "* Test app\n";
+  log_test "Test app";
   is_det (Fut.app (Fut.ret succ) (Fut.ret 2)) 3;
   is_never (Fut.app (Fut.never ()) (Fut.ret 2));
   is_never (Fut.app (Fut.ret succ) (Fut.never ()));
@@ -169,7 +185,7 @@ let app () =
   ()
 
 let map () = 
-  log "* Test map\n";
+  log_test "Test map";
   is_det (Fut.map succ (Fut.ret 2)) 3;
   is_never (Fut.map succ (Fut.never ()));
   record_trap (); 
@@ -188,7 +204,7 @@ let map () =
   ()
 
 let ignore () = 
-  log "* Test ignore\n"; 
+  log_test "Test ignore"; 
   is_det (Fut.ignore (Fut.ret 3)) (); 
   is_never (Fut.ignore (Fut.never ()));
   let () = 
@@ -205,7 +221,7 @@ let ignore () =
   ()
 
 let fold () = 
-  log "* Test fold\n";
+  log_test "Test fold";
   is_det (Fut.fold (+) 0 [Fut.ret 1; Fut.ret 2; Fut.ret 3]) 6;
   is_never (Fut.fold (+) 0 [Fut.ret 1; Fut.never (); Fut.ret 3]);
   is_det (Fut.fold (+) 3 []) 3;
@@ -247,7 +263,7 @@ let fold () =
   ()
 
 let sustain () = 
-  log "* Test sustain\n"; 
+  log_test "Test sustain"; 
   is_det (Fut.sustain (Fut.ret 3) (Fut.ret 2)) 3; 
   is_det (Fut.sustain (Fut.ret 3) (Fut.never ())) 3; 
   is_det (Fut.sustain (Fut.never ()) (Fut.ret 2)) 2;
@@ -279,7 +295,7 @@ let first () =
   | `Det (vs, fs) when v = vs && fs == f -> ()
   | _ -> assert false
   in
-  log "* Test first\n";
+  log_test "Test first";
   is_never (Fut.first (Fut.never ()) (Fut.never ())); 
   let r2 = Fut.ret 2 in
   let rn = Fut.never () in
@@ -314,7 +330,7 @@ let firstl () =
   | `Det (vs, fls) when v = vs && List.for_all2 ( == ) fls fl -> ()
   | _ -> assert false
   in
-  log "* Test firstl\n";
+  log_test "Test firstl";
   is_never (Fut.first (Fut.never ()) (Fut.never ())); 
   let r1, r2, r3, rn = Fut.ret 1, Fut.ret 2, Fut.ret 3, Fut.never () in 
   is_det (Fut.firstl [rn; r1; r2; r3]) (1, [rn; r2; r3]);
@@ -352,7 +368,7 @@ let firstl () =
   ()
 
 let abort () = 
-  log "* Test abort\n"; 
+  log_test "Test abort"; 
   Fut.abort (Fut.ret 3);
   Fut.abort (Fut.ret 3);
   let () = 
@@ -364,7 +380,7 @@ let abort () =
   ()
 
 let pick () = 
-  log "* Test pick\n"; 
+  log_test "Test pick"; 
   is_det (Fut.pick (Fut.never ()) (Fut.ret 2)) 2; 
   is_det (Fut.pick (Fut.ret 3) (Fut.never ())) 3;
   is_det (Fut.pick (Fut.ret 3) (Fut.ret 2)) 3;
@@ -387,10 +403,11 @@ let pick () =
   ()
 
 let suite () =
-  log "Testing base combinators\n";
+  log_suite "Testing base combinators";
   finally ();
   never ();
   ret ();
+  recover ();
   bind ();
   bind_loop ();
   app ();

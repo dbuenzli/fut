@@ -66,6 +66,13 @@ val ret : 'a -> 'a t
 (** [ret v] is a future that determines the value [v] immediately. 
     {ul {- \[[ret v]\]{_t} [= `Det v]}} *)
 
+val recover : 'a t -> [ `Det of 'a | `Never ] t 
+(** [recover f] is a future that determines [`Det v] if [f] determined
+    [v] or [`Never] if [f] was set to never determine. 
+    {ul
+    {- \[[recover f]\]{_t} [= `Det (`Det v)] if \[[f]\]{_t} [= `Det v]}
+    {- \[[recover f]\]{_t} [= `Det (`Never)] if \[[f]\]{_t} [= `Never]}} *)
+
 val bind : 'a t -> ('a -> 'b t) -> 'b t
 (** [bind f fn] is the future [fn v] where [v] is the value
     determined by [f]. 

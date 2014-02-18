@@ -14,5 +14,13 @@
   wouldn't tag.
 
 * Fut.finally should we pass 'c ? 
+
 * Fut.determine : 'a t -> until:'b t -> [ `Abort of 'b | `Det of 'a ]
+  (the name should reflect that we give a chance to determine before being
+   violent)
+  
 * Fut.settle : 'a t -> until:'b t -> [ `Abort of 'b | `Never | `Det of 'a ]
+  (the name should reflect that we give a chance to set before being 
+   violent.) 
+  
+* Fut.pair : 'a t -> 'b t -> ('a * 'b) t ? 

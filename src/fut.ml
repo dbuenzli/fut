@@ -103,7 +103,7 @@ and 'a undet =                                        (* undetermined state. *)
    2) The custom [abort] function of [fut] is called.
    3) The [deps] of [fut] are walked over and the waiter [fut] registred
       in them is set to [None].
-   4) Abort each dependency.
+   4) Each [deps] of [fut] is aborted.
    5) The waiters [ws] of [fut] are executed with [`Never].
    
    The reason in we first set all the waiters to [None] and only abort 
@@ -429,6 +429,19 @@ let finally fn v fut =
 (* Applicative combinators *)
 
 let ret v = { state = `Det v }
+
+let recover fut = 
+  let fut = src fut in 
+  match fut.state with 
+  | `Never | `Det _ as set -> { state = `Det set } 
+  | `Undet _ -> 
+      let fnew = undet () in 
+      let waiter = function 
+      | `Never | `Det _ as set -> fut_det fnew (`Det set)
+      in
+      add_dep fnew ~on:fut waiter; 
+      fnew 
+  | `Alias _ -> assert false
 
 let rec bind fut fn = 
   let fut = src fut in
