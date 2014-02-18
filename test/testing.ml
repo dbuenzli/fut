@@ -63,7 +63,7 @@ let is_state f s =
   | `Det a, `Det b when a <> b -> 
       log_fail loc "determined unexpected value" 
   | s, s' when s <> s' -> 
-      log_fail loc "expected %a not %a" pp_state s pp_state s'
+      log_fail loc "expected %a found %a" pp_state s pp_state s'
   | _ , _ -> ()
 
 let is_never f = is_state f `Never

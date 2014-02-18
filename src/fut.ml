@@ -316,7 +316,11 @@ let rec abort_deps_and_exec_waiters depss notifs = match depss with
     | [] -> 
         begin match notifs with 
         | Wnever ws :: notifs -> 
-            Runtime.Waiters.exec ws `Never;
+            (* This won't stack overflow because if waiters also 
+               deeply abort these aborts are put in the execution 
+               queue so only the first time we pass through here 
+               we get stuck and the stack is thus bounded. *) 
+            Runtime.Waiters.exec ws `Never; 
             abort_deps_and_exec_waiters rest notifs
         | [] -> assert false
         end
@@ -325,7 +329,7 @@ let rec abort_deps_and_exec_waiters depss notifs = match depss with
 | [] -> () 
         
 and deep_abort : 'a. 'a t -> deps list list -> wnever list -> unit =
-  fun fut depss notifs -> 
+  fun fut depss notifs ->
     let fut = src fut in
     match fut.state with 
     | `Undet u -> 
@@ -708,7 +712,7 @@ let firstl futs =
 
 (* Effectful combinators *)
 
-let rec abort fut =
+let abort fut =
   let fut = src fut in
   match fut.state with
   | `Det _ | `Never -> ()
@@ -770,7 +774,8 @@ let pick fut fut' =
               | `Undet _ ->
                   (* The order is important here, determining fnew first
                      will remove the waiters it has in [other]. *) 
-                  fut_det fnew det; fut_deep_abort other
+                  fut_det fnew det;
+                  fut_deep_abort other
               | `Det _ (* The other waiter would have removed this waiter. *)
               | `Alias _ -> assert false 
               end

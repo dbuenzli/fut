@@ -7,8 +7,9 @@
 open Fut.Ops
 open Testing
 
-(* Testing that loops don't leak and don't blow the stack. *) 
+(* Testing that loops don't leak and don't blow the stack. 
 
+   In drawings F --> F' means F waits on F'.  *) 
   
 (* Immediate, should not blow the stack. *)
 
@@ -23,27 +24,10 @@ let simple_loop () =
   Gc.full_major ();
   ()
 
-(* This is not a loop per se. It tests the runtime loops, namely that 
-   waiter execution doesn't stack overflow. *) 
-let deep_future () = 
-  log_test "The future may be deep (or high depending on your perspective)"; 
-  let f, p = promise () in 
-  let rec build n f = 
-    if n = 0 then f else build (n - 1) (Fut.map (fun x -> x) f)
-  in
-  let try_blow = build 1_000_000 f in 
-  is_undet try_blow; 
-  is_undet f;
-  Fut.set p (`Det 0);
-  ignore (Fut.await ~timeout:0. try_blow);
-  is_det try_blow 0;
-  Gc.full_major ();
-  ()
-
 (* Example from Vouillon's paper. Tests the aliasing mechanism. *)
         
 let vouillon_loop () = 
-  log_test "Vouillon loop";
+  log_test "Vouillon loop (top should show constant memory usage)";
   let ps = Queue.create () in
   let rec run () = 
     let p = try Some (Queue.pop ps) with Queue.Empty -> None in 
@@ -73,7 +57,7 @@ let vouillon_loop () =
    TODO redo, this changed because of the abort semantic change *)
 
 let pick_loop () = 
-  log_test "Test pick loop";
+  log_test "Test pick loop (top should show constant memory usage)";
   let fut = Fut.future (Fut.promise ()) in
   let rec loop n = 
     if n = 0 then Fut.ret 0 else 
@@ -84,12 +68,58 @@ let pick_loop () =
   Gc.full_major (); 
   ()
 
+(* This is not a loop per se. It tests the runtime loops, namely that 
+   waiter execution doesn't stack overflow. 
+                  
+   O --> O --> ... O --> O
+                         ^--- `Det 
+*) 
+let deep_future () = 
+  log_test "The future may be deep (or high depending on your perspective)"; 
+  let f, p = promise () in 
+  let rec tower n f = 
+    if n = 0 then f else tower (n - 1) (Fut.map (fun x -> x) f)
+  in
+  let try_blow = tower 1_000_000 f in 
+  is_undet try_blow; 
+  is_undet f;
+  Fut.set p (`Det 0);
+  is_det try_blow 0;
+  Gc.full_major ();
+  ()
+
+(* This is not a loop per se. It tests the runtime loops, namely that 
+   future abort doesn't stack overflow. 
+    
+   abort (D is for deep abort, S for shallow)
+   |
+   v
+   D     S     D     S     D     S              S     D
+   O <-- O --> O <-- O --> O <-- O --> .... --> O <-- O 
+*) 
+let deep_abort () =
+  log_test "It's a long way to abort."; 
+  let rec tower n last shallows = 
+    if n = 0 then last, shallows else
+    let next = Fut.(future (promise ())) in 
+    let shallow = Fut.pick (Fut.recover next) last in
+    tower (n - 1) next (shallow :: shallows)
+  in
+  let try_blow, shallows = tower 1_000_000 Fut.(future (promise())) [] in
+  is_undet try_blow;
+  Fut.abort try_blow;
+  is_never try_blow;
+  List.iter (fun f -> is_det f `Never) shallows;
+  Gc.full_major ();
+  ()
+
 let suite () =
-  log_suite "Testing loops (witness constant memory usage with top)";
-  deep_future ();
+  log_suite "Testing loop";
   simple_loop ();
   vouillon_loop ();
   pick_loop ();
+  deep_future ();
+  deep_abort ();
   ()
 
 (*---------------------------------------------------------------------------
