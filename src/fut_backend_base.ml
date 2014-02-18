@@ -11,7 +11,7 @@ let pp = Format.fprintf
 
 type exn_ctx = 
   [ `Queue of string | `Future | `Finalizer | `Backend
-  | `Fd_action | `Timer_action | `Runtime_action | `Signal_action ]
+  | `Fd_action | `Timer_action | `Runtime_action | `Signal_action | `Exn_trap ]
   
 type exn_info = exn_ctx * exn * string
                 
@@ -33,14 +33,15 @@ let split_backtrace bt =                                       (* Grrrr... *)
     
 let pp_exn_info ppf (ctx, e, bt) =
   let l = match ctx with 
-  | `Future -> "future" 
-  | `Queue l -> str "queue %s" l
-  | `Finalizer -> "finalizer"
-  | `Backend -> "multiplexer"
-  | `Timer_action -> "timer action"
-  | `Fd_action -> "file descriptor action" 
-  | `Signal_action -> "signal action" 
-  | `Runtime_action -> "runtime action"
+  | `Exn_trap -> "The exception trap itself"
+  | `Future -> "A future" 
+  | `Queue l -> str "A queue %s" l
+  | `Finalizer -> "A finalizer"
+  | `Backend -> "The backend"
+  | `Timer_action -> "A timer action"
+  | `Fd_action -> "A file descriptor action" 
+  | `Signal_action -> "A signal action" 
+  | `Runtime_action -> "A runtime action"
   in
   pp ppf "@[<v>%s raised:@,@[<v>%s" l (Printexc.to_string e);
   List.iter (pp ppf "@,%s") (split_backtrace bt); 
@@ -49,12 +50,19 @@ let pp_exn_info ppf (ctx, e, bt) =
 let default_exn_trap ei = pp Format.err_formatter "%a@." pp_exn_info ei
 let exn_trap : (exn_info -> unit) ref = ref default_exn_trap
 let set_exn_trap t = exn_trap := t
-let exn_trap ctx exn bt = !exn_trap (ctx, exn, bt)
-    
+let exn_trap ctx exn bt = 
+  try !exn_trap (ctx, exn, bt) with 
+  | exn -> (* The trap itself raised ! Report it to the trap.  *) 
+      try
+        let bt = Printexc.get_backtrace () in
+        !exn_trap (`Exn_trap, exn, bt)
+      with
+      | exn -> () (* Avoid inifinite loops.xs *)
+      
 let trap ctx f v = try f v with 
-| e -> 
+| exn -> 
     let bt = Printexc.get_backtrace () in 
-    exn_trap ctx e bt 
+    exn_trap ctx exn bt
 
 (* Queues *)       
 

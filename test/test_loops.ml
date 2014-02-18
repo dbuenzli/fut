@@ -13,54 +13,80 @@ open Testing
 (* Immediate, should not blow the stack. *)
 
 let simple_loop () = 
-  log "* Test simple loop.\n";
+  log_test "Test simple loop.";
   let rec loop n = 
     if n = 0 then Fut.ret 0 else 
     Fut.ret (pred n) >>= loop
   in
-  let l = loop 500_000_000 in 
-  is_det l 0
+  let l = loop 1_000_000 in 
+  is_det l 0;
+  Gc.full_major ();
+  ()
+
+(* This is not a loop per se. It tests the runtime loops, namely that 
+   waiter execution doesn't stack overflow. *) 
+let deep_future () = 
+  log_test "The future may be deep (or high depending on your perspective)"; 
+  let f, p = promise () in 
+  let rec build n f = 
+    if n = 0 then f else build (n - 1) (Fut.map (fun x -> x) f)
+  in
+  let try_blow = build 1_000_000 f in 
+  is_undet try_blow; 
+  is_undet f;
+  Fut.set p (`Det 0);
+  ignore (Fut.await ~timeout:0. try_blow);
+  is_det try_blow 0;
+  Gc.full_major ();
+  ()
 
 (* Example from Vouillon's paper. Tests the aliasing mechanism. *)
-
+        
 let vouillon_loop () = 
-  log "* Test Vouillon loop.\n";
-  let queue = Queue.create () in
+  log_test "Vouillon loop";
+  let ps = Queue.create () in
+  let rec run () = 
+    let p = try Some (Queue.pop ps) with Queue.Empty -> None in 
+    match p with 
+    | None -> ()
+    | Some p -> 
+        Fut.set p (`Det ()); (* ignore (Fut.await ~timeout:0. l); *)
+        run ()
+  in
   let yield () = 
     let p = Fut.promise () in
-    Queue.push p queue;
+    Queue.push p ps;
     Fut.future p
   in
-  let rec run () = 
-    match try Some (Queue.take queue) with Queue.Empty -> None with
-    | Some p -> 
-        Fut.set p (`Det ());
-        run ()
-    | None -> ()
-  in
   let rec loop n = 
-    if n = 0 then Fut.ret 0 else
+    if n = 0 then Fut.ret () else
     (yield () >>= fun () -> loop (n - 1))
   in
   let l = loop 50_000_000 in
-  is_undet l; run () ; is_det l 0
+  is_undet l;
+  run (); 
+  is_det l ();
+  ()
 
 (* Picking, here the waiters of [fut] may grow unbound, if there is
    no provision for compacting aborted waiters. 
    TODO redo, this changed because of the abort semantic change *)
 
 let pick_loop () = 
-  log "* Test pick loop\n";
+  log_test "Test pick loop";
   let fut = Fut.future (Fut.promise ()) in
   let rec loop n = 
     if n = 0 then Fut.ret 0 else 
     Fut.pick (Fut.map succ fut) (Fut.ret (pred n)) >>= loop
   in
   let l = loop 200_000_000 in 
-  is_never fut; is_det l 0
+  is_never fut; is_det l 0; 
+  Gc.full_major (); 
+  ()
 
 let suite () =
-  log "Testing loops (witness constant memory usage with top)\n";
+  log_suite "Testing loops (witness constant memory usage with top)";
+  deep_future ();
   simple_loop ();
   vouillon_loop ();
   pick_loop ();

@@ -13,7 +13,7 @@
 
 type exn_ctx = 
   [ `Queue of string | `Future | `Finalizer | `Backend
-  | `Fd_action | `Timer_action | `Signal_action | `Runtime_action ]
+  | `Fd_action | `Timer_action | `Signal_action | `Runtime_action | `Exn_trap ]
 (** The type for exception contexts. *)
   
 type exn_info = exn_ctx * exn * string

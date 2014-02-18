@@ -9,7 +9,7 @@ let string_of_file : string -> string Fut.t =
   let count = ref 0 in
   fun file -> incr count; 
     let count = !count in
-    let d = 2. +. Random.float 3. in
+    let d = 1. +. Random.float 2. in
     Printf.printf "Create %s: %d %gs\n%!" file count d;
     Fut.tick d >>= fun () ->             (* simulate taking time. *) 
     Fut.ret (str "%d time:%g" count d)
@@ -38,7 +38,7 @@ let files =
 
 let stop = 
   let cancel = Futu.signal Sys.sigusr1 >>= fun _ -> Fut.ret `Cancel in
-  let timeout = Fut.(tick 4. >>= fun () -> ret `Timeout) in
+  let timeout = Fut.(tick 2.0 >>= fun () -> ret `Timeout) in
   Fut.map (fun v -> `Stop v) (Fut.pick cancel timeout)
 
 let consume stop files =

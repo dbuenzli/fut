@@ -34,6 +34,7 @@ let pp_exn_ctx ppf = function
 | `Timer_action -> pp ppf "`Timer_action"
 | `Signal_action -> pp ppf "`Signal_action"
 | `Runtime_action -> pp ppf "`Runtime_action"
+| `Exn_trap -> pp ppf "`Exn_trap"
 
 let stack_to_loc stack =                                         (* Grrrrr. *) 
   let stack = Printexc.raw_backtrace_to_string stack in
@@ -62,7 +63,7 @@ let is_state f s =
   | `Det a, `Det b when a <> b -> 
       log_fail loc "determined unexpected value" 
   | s, s' when s <> s' -> 
-      log_fail loc "expected %a not %a" pp_state s pp_state s
+      log_fail loc "expected %a not %a" pp_state s pp_state s'
   | _ , _ -> ()
 
 let is_never f = is_state f `Never

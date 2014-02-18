@@ -8,7 +8,7 @@
 <src/select/fut_backend.*> : thread
 
 <test> : include
-<test/{test,cancel,sbox}.{ml,mli,byte,native}> : thread, \
+<test/{test,cancel,sbox}.{ml,mli,byte,native}> : debug, thread, \
                                                  package(threads), \
                                                  package(unix), \
                                                  use_fut_select

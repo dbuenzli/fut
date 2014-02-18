@@ -64,7 +64,7 @@ and 'a undet =                                        (* undetermined state. *)
    1) The state of [fut] is set to [`Det _]. 
    2) The [deps] of [fut] are walked over and the waiter [fut] registred
       in them is set to [None].
-   3) The waiters [ws] of [fut] are notified that [fut] is set to [`Det _].
+   3) The waiters [ws] of [fut] are executed with [fut]'s [`Det _].
 
    Note that after this [fut]'s undet value will be gc'd.
 
@@ -88,7 +88,7 @@ and 'a undet =                                        (* undetermined state. *)
    2) The custom [abort] function of [fut] is called. 
    3) The [deps] of [fut] are walked over and the waiter [fut] registred
       in them is set to [None].
-   4) The waiters [ws] of [fut] are notified that [fut] is set to [`Never].
+   4) The waiters [ws] of [fut] are executed with [`Never].
 
    See the [fut_shallow_abort] function.
 
@@ -104,7 +104,7 @@ and 'a undet =                                        (* undetermined state. *)
    3) The [deps] of [fut] are walked over and the waiter [fut] registred
       in them is set to [None].
    4) Abort each dependency.
-   5) The waiters [ws] of [fut] are notified that [fut] is set to [`Never].
+   5) The waiters [ws] of [fut] are executed with [`Never].
    
    The reason in we first set all the waiters to [None] and only abort 
    their corresponding dependency later (effectively walking over the deps 
@@ -149,10 +149,51 @@ and 'a t = { mutable state : 'a _state }                        (* future. *)
 (* Runtime system. *)
 
 module Runtime = struct
-  include Fut_backend_base 
-  include Fut_backend     
 
-  let waiter_cleanup_limit = 97
+  (* Waiter execution *) 
+
+  module Waiters : sig
+    val cleanup_limit : int 
+    val exec : 'a waiters -> 'a set -> unit
+  end = struct
+    let cleanup_limit = 97
+
+    (* To avoid blowing the stack on waiter execution, only the first
+       call to [exec] executes them. If a waiter sets a future the
+       execution of these subsequent waiters is put in [queue] and
+       will be eventually poped by the call to exec that initiated the
+       execution. *)
+
+    type exec = Exec : 'a waiters * 'a set -> exec
+
+    let queue : exec Queue.t = Queue.create ()    
+    let executing = ref false
+    let exec ws set =
+      Queue.add (Exec (ws, set)) queue;
+      if !executing then ((* only the initial exec executes *)) else 
+      begin 
+        executing := true;
+        try 
+          while true do
+            let Exec (ws, set) = Queue.pop queue in 
+            let rec loop set = function 
+            | Wempty :: todo -> loop set todo 
+            | Waiter { contents = None } :: todo -> loop set todo
+            | Waiter ({ contents = Some wf }) :: todo -> 
+                (* Execs resulting from this call go into [queue] *) 
+                wf set; loop set todo 
+            | Wunion (w, w') :: todo -> loop set (w :: w' :: todo)
+            | [] -> ()
+            in
+            loop set [ws]
+          done
+        with Queue.Empty -> executing := false
+      end
+  end
+
+  include Fut_backend_base
+  include Fut_backend
+
   let worker_count = Queue.worker_count
   let set_worker_count count = 
     if count < 0 then invalid_arg (err_invalid_worker_count count) else
@@ -161,6 +202,7 @@ module Runtime = struct
   let () = 
     Fut_backend.start (); 
     at_exit Fut_backend.stop
+
 end 
 
 (* Waiter sets *)
@@ -179,7 +221,7 @@ let wcleanup u =                           (* remove None waiters in [u.ws]. *)
   | Wunion (ws, ws') :: todo -> loop acc (ws :: ws' :: todo)
   | [] -> acc
   in
-  if u.ws_adds > Runtime.waiter_cleanup_limit 
+  if u.ws_adds > Runtime.Waiters.cleanup_limit 
   then (u.ws_adds <- 0; u.ws <- loop Wempty [u.ws])
 
 let add_waiter u wf = (* adds waiter with function [wf] to undetermined [u]. *)
@@ -188,23 +230,6 @@ let add_waiter u wf = (* adds waiter with function [wf] to undetermined [u]. *)
   u.ws_adds <- u.ws_adds + 1;
   wcleanup u;
   w
-
-let exec_waiters ws (s : 'a set) =       (* execs [ws] with future set [s]. *)
-(* N.B. waiter notification is not T.R. See if it is a problem 
-   in practice. One solution could be to thread the waiter set and
-   s in waiting functions through fut_{set,shallow_abort,deep_abort}. 
-   Maybe a simpler one is to have fut_{set,shallow_abort,deep_abort} 
-   have their waiters put into a queue rather than execute everything 
-   as it goes (that would make the execution in bfs rather than dfs 
-   order)*)
-  let rec loop s = function 
-  | Wempty :: todo -> loop s todo 
-  | Waiter { contents = None } :: todo -> loop s todo
-  | Waiter { contents = Some w } :: todo -> w s; loop s todo     (* not T.R. *) 
-  | Wunion (w, w') :: todo -> loop s (w :: w' :: todo)
-  | [] -> ()
-  in
-  loop s [ws]
 
 (* Dependency sets *) 
 
@@ -262,7 +287,7 @@ let fut_det fut (det : [ `Det of 'a ]) =
   | `Undet u ->
       fut.state <- (det :> 'a _state);
       stop_waiting_on u.deps;
-      exec_waiters u.ws (det :> 'a set)
+      Runtime.Waiters.exec u.ws (det :> 'a set)
   | _ -> assert false
     
 let fut_shallow_abort fut = 
@@ -272,12 +297,12 @@ let fut_shallow_abort fut =
       fut.state <- `Never;
       u.abort ();
       stop_waiting_on u.deps;
-      exec_waiters u.ws `Never
+      Runtime.Waiters.exec u.ws `Never
   | _ -> assert false 
 
 type wnever = Wnever : 'a waiters -> wnever (* wait on `Never, hide 'a *) 
 
-let rec abort_deps_and_notify_waiters depss notifs = match depss with 
+let rec abort_deps_and_exec_waiters depss notifs = match depss with 
 | deps :: rest -> 
     let rec loop = function 
     | Dempty :: todo -> loop todo 
@@ -291,8 +316,8 @@ let rec abort_deps_and_notify_waiters depss notifs = match depss with
     | [] -> 
         begin match notifs with 
         | Wnever ws :: notifs -> 
-            exec_waiters ws `Never;
-            abort_deps_and_notify_waiters rest notifs
+            Runtime.Waiters.exec ws `Never;
+            abort_deps_and_exec_waiters rest notifs
         | [] -> assert false
         end
     in
@@ -307,7 +332,7 @@ and deep_abort : 'a. 'a t -> deps list list -> wnever list -> unit =
         fut.state <- `Never; 
         u.abort (); 
         stop_waiting_on u.deps; 
-        abort_deps_and_notify_waiters 
+        abort_deps_and_exec_waiters 
           ([u.deps] :: depss) ((Wnever u.ws) :: notifs)
     | _ -> assert false 
     
@@ -375,7 +400,7 @@ let await ?(timeout = max_float) fut =
   if timeout < 0. then invalid_arg (err_invalid_timeout timeout) else
   match (src fut).state with
   | `Det _ | `Never as v -> v
-  | `Undet _ -> 
+  | `Undet _ ->
       let rec loop timeout fut =
         let elapsed = Runtime.step timeout in
         match (src fut).state with 
@@ -753,7 +778,7 @@ type 'a promise = 'a t                        (* The promise is the future ! *)
 
 let promise ?(abort = nop) () = undet_abort abort
 let future promise = promise
-let set promise set = 
+let set promise set =
   let promise = src promise in
   match promise.state with
   | `Undet _ -> 
