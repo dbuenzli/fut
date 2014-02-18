@@ -11,6 +11,9 @@
   Fut.map's would need to be introcuded ? But then Fut.{firstl,pickl}
   wouldn't tag.
 
+* select(2) backend is not forkable yet because of the self-pipe.
+  Should we have a Runtime.forked () call ?
+  
 * Fut.finally should we pass 'c ? 
 
 * Fut.determine : 'a t -> until:'b t -> [ `Abort of 'b | `Det of 'a ]
