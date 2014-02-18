@@ -1,34 +1,15 @@
 (*---------------------------------------------------------------------------
-   Copyright (c) 2012 Daniel C. Bünzli. All rights reserved.
+   Copyright (c) 2014 Daniel C. Bünzli. All rights reserved.
    Distributed under the BSD3 license, see license at the end of the file.
-   %%NAME%% version %%VERSION%%
+   %%NAME%% release %%VERSION%%
   ---------------------------------------------------------------------------*)
 
-(* Tests Unix futures. *)
+(* Tests the select(2) backend. *) 
 
-open Fut.Ops;;
-open Test;;
+let () = Test.main () 
 
-let signal () = 
-  log "Test signal\n";  
-  let f = Fut.Unix.signal Sys.sigalrm in
-  is_undet f; 
-  let status = { Unix.it_interval = 0.0; it_value = 0.1 } in
-  ignore (Unix.setitimer Unix.ITIMER_REAL status);
-  ignore (Fut.await f); 
-  is_det f Sys.sigalrm
-
-
-    
-let test () = 
-  Printexc.record_backtrace true;
-  signal ();
-  log "All tests suceeded.\n"
-
-let () = if not (!Sys.interactive) then test ()
-    
 (*---------------------------------------------------------------------------
-   Copyright (c) 2012 Daniel C. Bünzli
+   Copyright (c) 2014 Daniel C. Bünzli.
    All rights reserved.
 
    Redistribution and use in source and binary forms, with or without

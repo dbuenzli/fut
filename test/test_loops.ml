@@ -4,32 +4,29 @@
    %%NAME%% release %%VERSION%%
   ---------------------------------------------------------------------------*)
 
-open Fut.Ops
-open Testing
-
 (* Testing that loops don't leak and don't blow the stack. 
 
    In drawings F --> F' means F waits on F'.  *) 
+
+open Fut.Ops
+open Testing
   
 (* Immediate, should not blow the stack. *)
 
 let simple_loop () = 
   log_test "Test simple loop.";
-  let rec loop n = 
-    if n = 0 then Fut.ret 0 else 
-    Fut.ret (pred n) >>= loop
-  in
-  let l = loop 1_000_000 in 
+  let rec loop n = if n = 0 then Fut.ret 0 else Fut.ret (pred n) >>= loop in
+  let l = loop 1_000_000 in
   is_det l 0;
   Gc.full_major ();
   ()
 
 (* Example from Vouillon's paper. Tests the aliasing mechanism. *)
         
-let vouillon_loop () = 
+let vouillon_loop () =
   log_test "Vouillon loop (top should show constant memory usage)";
   let ps = Queue.create () in
-  let rec run () = 
+  let rec run () =
     let p = try Some (Queue.pop ps) with Queue.Empty -> None in 
     match p with 
     | None -> ()
@@ -37,12 +34,12 @@ let vouillon_loop () =
         Fut.set p (`Det ()); (* ignore (Fut.await ~timeout:0. l); *)
         run ()
   in
-  let yield () = 
+  let yield () =
     let p = Fut.promise () in
     Queue.push p ps;
     Fut.future p
   in
-  let rec loop n = 
+  let rec loop n =
     if n = 0 then Fut.ret () else
     (yield () >>= fun () -> loop (n - 1))
   in
@@ -72,8 +69,7 @@ let pick_loop () =
    waiter execution doesn't stack overflow. 
                   
    O --> O --> ... O --> O
-                         ^--- `Det 
-*) 
+                         ^--- `Det      *) 
 let deep_future () = 
   log_test "The future may be deep (or high depending on your perspective)"; 
   let f, p = promise () in 
@@ -95,8 +91,7 @@ let deep_future () =
    |
    v
    D     S     D     S     D     S              S     D
-   O <-- O --> O <-- O --> O <-- O --> .... --> O <-- O 
-*) 
+   O <-- O --> O <-- O --> O <-- O --> .... --> O <-- O  *) 
 let deep_abort () =
   log_test "It's a long way to abort."; 
   let rec tower n last shallows = 

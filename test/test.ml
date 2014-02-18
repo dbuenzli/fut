@@ -9,7 +9,8 @@ let str = Printf.sprintf
 let suites = 
   [ `Base, Test_base.suite;
     `Loops, Test_loops.suite; 
-    `Signals, Test_signals.suite; ]
+    `Signals, Test_signals.suite; 
+    `Timers, Test_timers.suite; ]
 
 let suite_ids = List.map fst suites  
 
@@ -29,6 +30,7 @@ let main () =
   let quote s = str "`%s'" s in
   let sid_to_string = function 
   | `Base -> "base" | `Loops -> "loops" | `Signals -> "signals" 
+  | `Timers -> "timers"
   in
   let sid_to_string s = quote (sid_to_string s) in
   let usage = 
@@ -45,14 +47,13 @@ let main () =
   | "base" -> add_suite `Base 
   | "loops" -> add_suite `Loops 
   | "signals" -> add_suite `Signals
+  | "timers" -> add_suite `Timers
   | s -> raise (Arg.Bad (str "no test suite named `%s'" s)) 
   in
   Arg.parse (Arg.align options) anon usage;
   let selected = match List.rev !selected with [] -> suite_ids | l -> l in 
   tests selected
   
-let () = main ()
-
 (*---------------------------------------------------------------------------
    Copyright (c) 2014 Daniel C. Bünzli.
    All rights reserved.

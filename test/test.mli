@@ -4,12 +4,7 @@
    %%NAME%% release %%VERSION%%
   ---------------------------------------------------------------------------*)
 
-let main _ = 
-  Test_base.suite ();
-(*  Test_loops.suite (); blows stack *) 
-  Js._false 
-
-let () = Dom_html.window ## onload <- Dom_html.handler main
+val main : unit -> unit 
 
 (*---------------------------------------------------------------------------
    Copyright (c) 2014 Daniel C. Bünzli.

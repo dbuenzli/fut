@@ -6,8 +6,8 @@
 
 (* Tests the basic combinators. *)
 
-open Fut.Ops;;
-open Testing;;
+open Fut.Ops
+open Testing
 
 let finally () = 
   log_test "Test finally"; 
