@@ -81,7 +81,6 @@ module type Backend = sig
   val step : timeout:float -> float
   val action : (unit -> unit) -> unit
   val signal_action : int -> (abort -> (int -> unit) * 'a) -> 'a
-  val deadline : unit -> float option
   val timer_action : float -> (abort -> (float -> unit) * 'a) -> 'a
   val fd_action : [`R | `W] -> Unix.file_descr -> (bool -> unit) -> unit
   val fd_close : Unix.file_descr -> unit

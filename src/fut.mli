@@ -401,11 +401,6 @@ module Runtime : sig
 
   (** {2 Timer actions} *)
 
-  val deadline : unit -> float option 
-  (** [deadline ()] is the duration to the next timer action
-      (if any). If the duration is negative, the runtime
-      system is late. *)
-
   val timer_action : float -> (abort -> (float -> unit) * 'a) -> 'a
   (** [timer_action d def] calls [def] with an [abort] function to 
       get [(action,v)]. The function [action] is scheduled for execution 

@@ -74,9 +74,6 @@ module type Backend = sig
 
   (** {2 Timer actions} *) 
 
-  val deadline : unit -> float option
-  (** See {!Fut.Runtime.deadline}. *) 
-
   val timer_action : float -> (abort -> (float -> unit) * 'a) -> 'a 
   (** See {!Fut.Runtime.timer_action}. *)   
 

@@ -12,7 +12,6 @@ let start () = ()
 let stop () = ()
 let action a = failwith "TODO"
 let signal_action s a = failwith "TODO"
-let deadline () = failwith "TODO"
 let timer_action t a = failwith "TODO"
 let fd_action state fd a = failwith "TODO"
 let fd_close fd = failwith "TODO"
@@ -27,8 +26,6 @@ module Queue = struct
       
   let label q = failwith "TODO"
   let add_work q w = failwith "TODO"
-    
-
   let worker_count () = failwith "TODO"
   let set_worker_count count = failwith "TODO"
   let ensure_worker () = failwith "TODO"    
