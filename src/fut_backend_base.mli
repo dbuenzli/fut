@@ -16,7 +16,7 @@ type exn_ctx =
   | `Fd_action | `Timer_action | `Signal_action | `Runtime_action | `Exn_trap ]
 (** The type for exception contexts. *)
   
-type exn_info = exn_ctx * exn * string
+type exn_info = exn_ctx * exn * Printexc.raw_backtrace
 (** The type for info about trapped exceptions. The context, 
       the exception, and the backtrace. *)
                 
@@ -28,7 +28,7 @@ val pp_exn_info : Format.formatter -> exn_info -> unit
 (** [pp_exn_info ppf i] prints an unspecified representation of [i]
       on [ppf]. *)
 
-val exn_trap : exn_ctx -> exn -> string -> unit
+val exn_trap : exn_ctx -> exn -> Printexc.raw_backtrace -> unit
 (** [exn_traps ctx exn bt] traps the exception [exn] in context [ctx] with
     backtrace [bt]. *) 
 

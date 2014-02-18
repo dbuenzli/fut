@@ -345,13 +345,13 @@ and fut_deep_abort : 'a. 'a t -> unit = fun fut ->
 
 let fut_det_trap fut fn v = try fut_det fut (`Det (fn v)) with 
 | e -> 
-    let bt = Printexc.get_backtrace () in 
+    let bt = Printexc.get_raw_backtrace () in 
     Runtime.exn_trap `Future e bt; 
     fut_shallow_abort fut 
 
 let det_trap fn v = try { state = `Det (fn v) }  with 
 | e ->
-    let bt = Printexc.get_backtrace () in 
+    let bt = Printexc.get_raw_backtrace () in 
     Runtime.exn_trap `Future e bt; 
     { state = `Never } 
 
@@ -421,7 +421,7 @@ let await ?(timeout = max_float) fut =
 let finally fn v fut = 
   let trap_finally fn v = try ignore (fn v) with
   | e ->
-      let bt = Printexc.get_backtrace () in 
+      let bt = Printexc.get_raw_backtrace () in 
       Runtime.exn_trap `Finalizer e bt
   in
   let fut = src fut in
@@ -459,7 +459,7 @@ let rec bind fut fn =
       | `Det v -> 
           let fut = try fn v with 
           | e -> 
-              let bt = Printexc.get_backtrace () in 
+              let bt = Printexc.get_raw_backtrace () in 
               Runtime.exn_trap `Future e bt; 
               never () 
           in
@@ -826,7 +826,7 @@ let apply ?(queue = Queue.concurrent) ?abort f v =
     with 
     | Never -> Runtime.action (fun () -> set p `Never)
     | exn ->
-        let bt = Printexc.get_backtrace () in 
+        let bt = Printexc.get_raw_backtrace () in 
         let a () = 
           Runtime.exn_trap (`Queue (Queue.label queue)) exn bt; 
           set p `Never 

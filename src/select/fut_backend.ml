@@ -161,7 +161,7 @@ let exec_fd_actions timeout =
   with 
   | Unix.Unix_error ((Unix.EAGAIN | Unix.EINTR), _, _) -> ()
   | e ->
-      let bt = Printexc.get_backtrace () in
+      let bt = Printexc.get_raw_backtrace () in
       Fut_backend_base.exn_trap `Backend e bt
         
 (* Unblock select () via self-pipe. *) 
@@ -181,7 +181,7 @@ end = struct
     | Unix.Unix_error ((Unix.EAGAIN | Unix.EWOULDBLOCK), _, _) -> 
         () (* TODO why ? *)
     | e ->
-        let bt = Printexc.get_backtrace () in 
+        let bt = Printexc.get_raw_backtrace () in 
         Fut_backend_base.exn_trap `Backend e bt
           
   let rec unblocked _ =                     (* consume data from !unblock_r *) 
@@ -193,7 +193,7 @@ end = struct
     | Unix.EINTR -> unblocked true 
     | Unix.EAGAIN | Unix.EWOULDBLOCK -> fd_action `R !unblock_r unblocked 
     | _ ->
-        let bt = Printexc.get_backtrace () in 
+        let bt = Printexc.get_raw_backtrace () in 
         Fut_backend_base.exn_trap `Backend e bt; 
         fd_action `R !unblock_r unblocked
           
@@ -212,7 +212,7 @@ end = struct
       try Unix.close !fd_ref; fd_ref := dummy with 
       | Unix.Unix_error (Unix.EINTR, _, _) -> close fd_ref dummy
       | e -> 
-          let bt = Printexc.get_backtrace () in 
+          let bt = Printexc.get_raw_backtrace () in 
           Fut_backend_base.exn_trap `Backend e bt
     in
     Fut_backend_base.trap `Backend (close unblock_r) Unix.stdin; 

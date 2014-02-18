@@ -5,8 +5,6 @@
 * Check this bug  http://caml.inria.fr/mantis/view.php?id=5783
 * Fut.apply, queues could hold refs on options to abort if not 
   already scheduled.
-* test timers. 
-* use Printexc.raw_backtraces for the exception trap.
 * Fut.firstl define semantics for empty list, also 
   underdefind with future that set to never determine.
 * Fut.{first,pick} should we tag with `Left | `Right maybe less 

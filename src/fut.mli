@@ -343,7 +343,7 @@ module Runtime : sig
   | `Timer_action | `Signal_action | `Runtime_action | `Exn_trap ]
   (** The type for exception contexts. *)
 
-  type exn_info = exn_ctx * exn * string
+  type exn_info = exn_ctx * exn * Printexc.raw_backtrace
   (** The type for info about trapped exceptions. The context, 
       the exception, and the backtrace. *)
 

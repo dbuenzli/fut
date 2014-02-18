@@ -13,7 +13,7 @@ type exn_ctx =
   [ `Queue of string | `Future | `Finalizer | `Backend
   | `Fd_action | `Timer_action | `Runtime_action | `Signal_action | `Exn_trap ]
   
-type exn_info = exn_ctx * exn * string
+type exn_info = exn_ctx * exn * Printexc.raw_backtrace
                 
 let split_backtrace bt =                                       (* Grrrr... *)
   let split_string s sep =
@@ -29,7 +29,7 @@ let split_backtrace bt =                                       (* Grrrr... *)
     in
       split [] (String.length s - 1)
   in
-  split_string bt '\n'
+  split_string (Printexc.raw_backtrace_to_string bt) '\n'
     
 let pp_exn_info ppf (ctx, e, bt) =
   let l = match ctx with 
@@ -54,14 +54,14 @@ let exn_trap ctx exn bt =
   try !exn_trap (ctx, exn, bt) with 
   | exn -> (* The trap itself raised ! Report it to the trap.  *) 
       try
-        let bt = Printexc.get_backtrace () in
+        let bt = Printexc.get_raw_backtrace () in
         !exn_trap (`Exn_trap, exn, bt)
       with
       | exn -> () (* Avoid inifinite loops.xs *)
       
 let trap ctx f v = try f v with 
 | exn -> 
-    let bt = Printexc.get_backtrace () in 
+    let bt = Printexc.get_raw_backtrace () in 
     exn_trap ctx exn bt
 
 (* Queues *)       
