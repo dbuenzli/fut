@@ -334,6 +334,9 @@ end
 (** Runtime system configuration and interaction. *)
 module Runtime : sig
 
+  val name : string 
+  (** [name] is the backend name. *) 
+
   (** {1 Exception trap} 
 
       See also the section about {{!exceptions}exceptions}. *)

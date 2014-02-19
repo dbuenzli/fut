@@ -8,7 +8,7 @@ let main _ =
   Test_base.suite ();
 (*  Test_loops.suite (); blows stack *) 
   Test_timers.suite ();
-  Testing.log_results ();
+  ignore (Testing.log_results ());
   Js._false 
 
 let () = Dom_html.window ## onload <- Dom_html.handler main
