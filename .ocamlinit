@@ -1,8 +1,0 @@
-#directory "_build/src"
-#directory "_build/test"
-
-#use "topfind"
-#thread
-
-#load "_build/src/fut.cmo"
-#use "src/fut_top.ml"

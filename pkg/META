@@ -1,23 +1,10 @@
-version = "%%VERSION%%"
 description = "Future values for asynchronous programming"
+version = "%%VERSION%%"
 archive(byte) = "fut.cma"
 archive(byte, plugin) = "fut.cma"
 archive(native) = "fut.cmxa"
 archive(native, plugin) = "fut.cmxs"
-archive(byte,toploop) += "fut_top.cma"
-archive(native,toploop) += "fut_top.cmxa"
 exists_if = "fut.cma"
-
-package "top" (
- version = "%%VERSION%%"
- description = "Toplevel module for Fut"
- requires = "compiler-libs.toplevel"
- archive(byte) = "fut_top.cma"
- archive(byte, plugin) = "fut_top.cma"
- archive(native) = "fut_top.cmxa"
- archive(native, plugin) = "fut_top.cmxs"
- exists_if = "fut_top.cma"
-)
 
 package "u" (
   version = "%%VERSION%%"
@@ -30,24 +17,48 @@ package "u" (
   exists_if = "futu.cma"
 )
 
+# Backends 
+
+# For toplevel we need to load the backend before fut since the 
+# backend provides the implementation for Fut_backend that fut needs.
+# For this reason the toploop predicate is not specified in fut but in 
+# backends and the user should just #require directly the backend, this 
+# will load things properly modulo a #thread invocation before (FIXME: is 
+# it possible to have this invocation ensured automatically ?). 
+
+package "top" (
+ version = "%%VERSION%%"
+ description = "Toplevel module for Fut"
+ requires = "compiler-libs.toplevel"
+ archive(byte) = "fut_top.cma"
+ archive(byte, plugin) = "fut_top.cma"
+ archive(native) = "fut_top.cmxa"
+ archive(native, plugin) = "fut_top.cmxs"
+ exists_if = "fut_top.cma"
+)
+
 package "select" (
   version = "%%VERSION%%"
   description = "Fut's UNIX select(2) backend"
-  requires = "threads unix fut"
+  requires = "threads unix"
   archive(byte) = "fut_select.cma"
   archive(byte, plugin) = "fut_select.cma"
+  archive(byte, toploop) += "fut.cma fut_top.cma"
   archive(native) = "fut_select.cmxa"
   archive(native, plugin) = "fut_select.cmxs"
+  archive(native, toploop) += "fut.cmxa fut_top.cmxa"
   exists_if = "fut_select.cma"
 )
 
 package "jsoo" (
   version = "%%VERSION%%"
   description = "Fut's js_of_ocaml backend"
-  requires = "fut js_of_ocaml js_of_ocaml.syntax"
+  requires = "js_of_ocaml js_of_ocaml.syntax"
   archive(byte) = "fut_jsoo.cma"
   archive(byte, plugin) = "fut_jsoo.cma"
+  archive(byte, toploop) += "fut.cma fut_top.cma"
   archive(native) = "fut_jsoo.cmxa"
   archive(native, plugin) = "fut_jsoo.cmxs"
+  archive(native, toploop) += "fut.cmxa fut_top.cmxa"
   exists_if = "fut_jsoo.cma"
 )

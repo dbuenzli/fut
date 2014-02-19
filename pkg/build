@@ -21,6 +21,14 @@ add lib src/fut.a
 add lib src/fut.cmxa
 add lib src/fut.cmxs
 
+add lib src/fut_top.ml
+add lib src/fut_top.cmi
+add lib src/fut_top.cmx
+add lib src/fut_top.cma
+add lib src/fut_top.a
+add lib src/fut_top.cmxa
+add lib src/fut_top.cmxs
+
 add lib src/fut_backend.mli
 add lib src/fut_backend.cmti
 add lib src/fut_backend.cmi 
