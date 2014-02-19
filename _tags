@@ -7,6 +7,10 @@
 <src/select/fut_select.*> : thread, package(threads), package(unix)
 <src/select/fut_backend.*> : thread
 
+<src/jsoo/fut_backend.*> : package(js_of_ocaml), \
+                           package(js_of_ocaml.syntax), \
+                           syntax(camlp4o)
+
 <test> : include
 <test/{test_select,cancel,sbox}.{ml,mli,byte,native}> : debug, thread, \
                                                         package(threads), \

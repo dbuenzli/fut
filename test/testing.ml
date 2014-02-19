@@ -6,15 +6,24 @@
 
 (* Common test infrastructure *)
 
+let assert_count = ref 0
+let failure_count = ref 0 
+
 let exn_to_str = Printexc.to_string
 let str = Format.sprintf 
 let pp = Format.fprintf 
 let log f = Format.printf (f ^^ "@?") 
 let log_test f = Format.printf ( "* " ^^ f ^^ "@.")
 let log_suite f = Format.printf ( f ^^ "@.")
-
-let assert_count = ref 0
-let failure_count = ref 0 
+let log_results () =
+  if !failure_count > 0 then begin
+    log "There were %d failure out of %d assertions" 
+      !failure_count !assert_count;
+    false
+  end else begin 
+    log "All tests suceeded (%d assertions).@." !assert_count; 
+    true 
+  end
 
 let fail fmt = 
   let fail _ = failwith (Format.flush_str_formatter ()) in 

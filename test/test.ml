@@ -17,14 +17,7 @@ let suite_ids = List.map fst suites
 let tests suite_ids =
   let test id = (List.assoc id suites) () in
   List.iter test suite_ids;
-  if !Testing.failure_count > 0 then begin 
-    Testing.(log "There were %d failure out of %d assertions" 
-               !failure_count !assert_count); 
-    exit 1
-  end else begin 
-    Testing.(log "All tests suceeded (%d assertions).@." !assert_count); 
-    exit 0
-  end
+  if Testing.log_results () then exit 0 else exit 1
     
 let main () = 
   let quote s = str "`%s'" s in

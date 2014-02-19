@@ -28,8 +28,9 @@ val log_suite : ('a, Format.formatter, unit, unit, unit, unit) format6 -> 'a
 val fail : ('a, Format.formatter, unit, 'b) format4 -> 'a
 (** [fail msg] raises [Failure msg]. *)
 
-val assert_count : int ref
-val failure_count : int ref
+val log_results : unit -> bool
+(** [log_results ()] logs the result of the tests performed and returns
+    [true] if there were no errors. *) 
 
 (** {1 Asserting futures} 
 

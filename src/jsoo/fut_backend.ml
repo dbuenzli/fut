@@ -8,12 +8,34 @@
 
 let name = "fut.jsoo" 
 
+let now_ms () = (jsnew Js.date_now () ## getTime ())
+
 let start () = ()
 let stop () = ()
-let step ~timeout = failwith "TODO"
-let action a = failwith "TODO"
-let signal_action s a = failwith "TODO"
-let timer_action t a = failwith "TODO"
+let step ~timeout =
+  let start = now_ms () in (* This won't work. *) 
+  (now_ms () -. start) /. 1000.
+
+let action a = failwith "TODO action"
+let signal_action s a = failwith "TODO signal action"
+
+let timer_action d def = 
+  (* We don't use clearTimeout for abort, it seems unreliable in certain 
+     browsers, we'd still need a ref anyways since we only get the clearing
+     id after having called setTimeout() *)
+  let action_ref = ref None in 
+  let abort () = action_ref := None in
+  let action, v = def abort in
+  action_ref := Some action;
+  let ms = d *. 1000. in
+  let exp_time_ms = now_ms () +. ms in
+  let cb () = match !action_ref with 
+  | None -> ()
+  | Some action -> action ((now_ms () -. exp_time_ms) /. 1000.)
+  in
+  ignore (Dom_html.window ## setTimeout (Js.wrap_callback cb, ms)); 
+  v
+
 let fd_action state fd a = failwith "TODO"
 let fd_close fd = failwith "TODO"
 let worker_count () = failwith "TODO"
