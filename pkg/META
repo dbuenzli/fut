@@ -6,7 +6,7 @@ archive(native) = "fut.cmxa"
 archive(native, plugin) = "fut.cmxs"
 exists_if = "fut.cma"
 
-package "futu" (
+package "u" (
   version = "%%VERSION%%"
   requires = "unix fut"
   description = "Unix system calls as futures"
