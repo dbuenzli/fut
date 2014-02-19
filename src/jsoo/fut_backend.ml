@@ -9,12 +9,10 @@
 let name = "fut.jsoo" 
 
 let now_ms () = (jsnew Js.date_now () ## getTime ())
-
+ 
 let start () = ()
 let stop () = ()
-let step ~timeout =
-  let start = now_ms () in (* This won't work. *) 
-  (now_ms () -. start) /. 1000.
+let step ~timeout = failwith "await unsupported"
 
 let action a = failwith "TODO action"
 let signal_action s a = failwith "TODO signal action"
