@@ -29,6 +29,23 @@ end = struct
           ignore (Dom_html.window ## setTimeout (Js.wrap_callback cb, 0.))
         in
       ignore (Dom_html.window ## setTimeout (Js.wrap_callback cb, 0.))
+
+
+(*
+  let async_await ?(timeout = max_float) fut k = match Fut.state fut
+  | `Det _ | `Never as set -> k set 
+  | `Undet -> 
+    let def abort =
+      let finally = ref Some (fun () -> abort (); k (Fut.state fut)) in 
+      let finally _ = match !finally with None -> () | Some f -> () in
+      let _ = Fut.finally finally fut in
+      let timer _ = finally := None; k (Fut.state fut) in 
+      timer, () 
+    in
+    Runtime.timer_action timeout def 
+  *)  
+
+
 end
 
 let timers k () = 
