@@ -4,6 +4,8 @@ archive(byte) = "fut.cma"
 archive(byte, plugin) = "fut.cma"
 archive(native) = "fut.cmxa"
 archive(native, plugin) = "fut.cmxs"
+archive(byte,toploop) += "fut_top.cma"
+archive(native,toploop) += "fut_top.cmxa"
 exists_if = "fut.cma"
 
 package "top" (
