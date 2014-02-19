@@ -24,7 +24,6 @@ package "u" (
   requires = "unix fut"
   description = "Unix system calls as futures"
   archive(byte) = "futu.cma"
-  archive(byte) = "futu.cma"
   archive(byte, plugin) = "futu.cma"
   archive(native) = "futu.cmxa"
   archive(native, plugin) = "futu.cmxs"
