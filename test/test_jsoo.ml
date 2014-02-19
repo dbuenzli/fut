@@ -13,7 +13,7 @@ end = struct
   let yield f = 
     ignore (Dom_html.window ## setTimeout (Js.wrap_callback f, 0.))
       
-  let now_ms () = (jsnew Js.date_now () ## getTime ())
+  let now_ms () = jsnew Js.date_now () ## getTime ()
                   
   let async_await ?(timeout = max_float) fut k = 
     let start = now_ms () in

@@ -22,7 +22,7 @@ package "top" (
 package "u" (
   version = "%%VERSION%%"
   requires = "unix fut"
-  description "Unix system calls as futures"
+  description = "Unix system calls as futures"
   archive(byte) = "futu.cma"
   archive(byte) = "futu.cma"
   archive(byte, plugin) = "futu.cma"

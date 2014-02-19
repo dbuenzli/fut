@@ -8,7 +8,7 @@
 
 let name = "fut.jsoo" 
 
-let now_ms () = (jsnew Js.date_now () ## getTime ())
+let now_ms () = jsnew Js.date_now () ## getTime ()
  
 let start () = ()
 let stop () = ()
