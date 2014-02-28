@@ -311,12 +311,24 @@ val delay : float -> float t
 val tick : float -> unit t
 (** [tick d] is {!ignore} [(]{!delay} [d)]. *)
 
+(** {1 Error handling} *)
+
+type ('a, 'b) result = [ `Ok of 'a | `Error of 'b ]
+(** The type for Unix function results. *)
+ 
+val ebind : ('a, 'c) result t -> ('a -> ('b, 'c) result t) -> 
+  ('b, 'c) result t
+
 (** {1 Infix operators} 
 
     Use of these operators may kill a few parentheses. *)
 
 val (>>=) : 'a t -> ('a -> 'b t) -> 'b t
 (** [f >>= fn] is [bind f fn]. *)
+
+val (&>>=) : ('a, 'c) result t -> ('a -> ('b, 'c) result t) -> 
+  ('b, 'c) result t
+(** [f &>>= fn] is [ebind f fn]. *)
 
 (** Infix operators. 
 
@@ -327,6 +339,10 @@ module Ops : sig
 
   val (>>=) : 'a t -> ('a -> 'b t) -> 'b t
   (** [f >>= fn] is [bind f fn]. *)
+
+  val (&>>=) : ('a, 'c) result t -> ('a -> ('b, 'c) result t) -> 
+    ('b, 'c) result t
+  (** [f &>>= fn] is [ebind f fn]. *)
 end
 
 (** {1 Runtime system} *)

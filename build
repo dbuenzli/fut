@@ -11,7 +11,7 @@ OCAMLBUILD=${OCAMLBUILD:="ocamlbuild -tag debug -classic-display \
 action () 
 {
     case $1 in
-      default)      $OCAMLBUILD fut.cmx fut_unix.cmx fut_jsoo.cmx ;;
+      default)      $OCAMLBUILD fut.cmx futu.cmx ;;
       tests)        $OCAMLBUILD tests.otarget ;;
       test_jsoo)    shift; jsoo-build "$*" test/test_jsoo.ml
                     ;;

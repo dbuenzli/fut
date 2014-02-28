@@ -846,9 +846,21 @@ let tick d =
   in
   Runtime.timer_action d def
 
+(* Error handling *) 
+
+type ('a, 'b) result = [ `Ok of 'a | `Error of 'b ]
+
+let ebind f fn =
+  bind f @@ function
+  | `Error _  as e -> ret e 
+  | `Ok v -> fn v
+
 let ( >>= ) = bind           (* we have it here aswell for Fut.() notation. *) 
+let ( &>>= ) = ebind
+ 
 module Ops = struct
-  let (>>=) = bind
+  let ( >>= ) = bind
+  let ( &>>= ) = ebind
 end
 
 (*---------------------------------------------------------------------------
