@@ -314,7 +314,7 @@ val tick : float -> unit t
 (** {1 Error handling} *)
 
 type ('a, 'b) result = [ `Ok of 'a | `Error of 'b ]
-(** The type for Unix function results. *)
+(** The type for results with errors. *)
  
 val ebind : ('a, 'c) result t -> ('a -> ('b, 'c) result t) -> 
   ('b, 'c) result t

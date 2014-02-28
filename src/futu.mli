@@ -25,13 +25,10 @@
 type error = Unix.error * string * string 
 (** The type for Unix errors as reported by {!Unix.Unix_error} 
       exceptions. *)
-             
-type 'a result = [ `Error of error | `Ok of 'a ]
+
+type 'a result = ('a, error) Fut.result 
 (** The type for Unix function results. *)
                  
-val ubind : [> 'b result] Fut.t -> ('a -> [> 'b result] Fut.t) -> 
-  [> 'b result] Fut.t
-    
 val apply : ?queue:Fut.queue -> ('a -> 'b) -> 'a -> [> 'b result] Fut.t
   (** [apply queue f v] applies [f v] on [queue] and catches 
       {!Unix.Unix_error}. [EINTR] is handled by retrying the call. *)
@@ -39,7 +36,7 @@ val apply : ?queue:Fut.queue -> ('a -> 'b) -> 'a -> [> 'b result] Fut.t
 val call : ('a -> 'b) -> 'a -> [> 'b result] Fut.t
 (** [call f v] applies [f v] synchronously and catches 
       {!Unix.Unix_error}. [EINTR] is handled by retrying the call. *)
-    
+
 (** {1 Signals} *)
     
   val signal : int -> int Fut.t
