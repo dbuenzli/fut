@@ -17,6 +17,17 @@ package "u" (
   exists_if = "futu.cma"
 )
 
+package "r" (
+  version = "%%VERSION%%"
+  requires = "react fut"
+  description = "Futures as React events and vice-versa"
+  archive(byte) = "futr.cma"
+  archive(byte, plugin) = "futr.cma"
+  archive(native) = "futr.cmxa"
+  archive(native, plugin) = "futr.cmxs"
+  exists_if = "futr.cma"
+)
+
 # Backends 
 
 # For toplevel we need to load the backend before fut since the 

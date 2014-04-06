@@ -9,7 +9,8 @@ LOC=`dirname $0`
 
 NATIVE=$1
 UNIX=$2
-JSOO=$3
+REACT=$3
+JSOO=$4
 
 add lib pkg/META		
 add lib src/fut.mli
@@ -47,6 +48,17 @@ if [ "$UNIX" != "false" ]; then
     add lib src/select/fut_select.a
     add lib src/select/fut_select.cmxa
     add lib src/select/fut_select.cmxs
+fi
+
+if [ "$REACT" != "false" ]; then
+    add lib src/futr.mli
+    add lib src/futr.cmti
+    add lib src/futr.cmi
+    add lib src/futr.cmx	
+    add lib src/futr.cma
+    add lib src/futr.a
+    add lib src/futr.cmxa
+    add lib src/futr.cmxs
 fi
 
 if [ "$JSOO" != "false" ]; then 

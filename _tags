@@ -11,6 +11,8 @@
                            package(js_of_ocaml.syntax), \
                            syntax(camlp4o)
 
+<src/futr.*> : package(react)
+
 <test> : include
 <test/{test_select,cancel,sbox}.{ml,mli,byte,native}> : debug, thread, \
                                                         package(threads), \
