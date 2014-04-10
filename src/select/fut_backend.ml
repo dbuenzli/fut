@@ -94,7 +94,7 @@ end = struct
       if  time > now then None else
       (* FIXME: that closure could be avoided, redesign timeline. *) 
       let action = match action with None -> assert false | Some a -> a in
-      (pop h; Some (fun () -> action (now -. time)))
+      (pop h; Some (fun () -> action (time -. now)))
     in
     loop (now ())
       

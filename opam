@@ -1,7 +1,7 @@
 opam-version: "1"
 maintainer: "Daniel Bünzli <daniel.buenzl i@erratique.ch>"
 homepage: "http://erratique.ch/software/fut"
-authors: ["Daniel Bünzli <daniel.buenzli i@erratique.ch>"]
+authors: ["Daniel Bünzli <daniel.buenzl i@erratique.ch>"]
 doc: "http://erratique.ch/software/fut/doc/Fut"
 tags: [ "future" "asynchronous" "system" ]
 license: "BSD3"
