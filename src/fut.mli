@@ -319,6 +319,8 @@ type ('a, 'b) result = [ `Ok of 'a | `Error of 'b ]
 val ebind : ('a, 'c) result t -> ('a -> ('b, 'c) result t) -> 
   ('b, 'c) result t
 
+val ok : 'a -> ('a, 'b) result t
+
 (** {1 Infix operators} 
 
     Use of these operators may kill a few parentheses. *)

@@ -855,6 +855,8 @@ let ebind f fn =
   | `Error _  as e -> ret e 
   | `Ok v -> fn v
 
+let ok v = { state = `Det (`Ok v) }
+
 let ( >>= ) = bind           (* we have it here aswell for Fut.() notation. *) 
 let ( &>>= ) = ebind
  
