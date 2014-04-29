@@ -320,6 +320,7 @@ val ebind : ('a, 'c) result t -> ('a -> ('b, 'c) result t) ->
   ('b, 'c) result t
 
 val ok : 'a -> ('a, 'b) result t
+val error : 'b -> ('a, 'b) result t
 
 (** {1 Infix operators} 
 
