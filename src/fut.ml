@@ -412,6 +412,11 @@ let await ?(timeout = max_float) fut =
       loop timeout fut
   | `Alias _ -> assert false
 
+
+let sync fut = match await fut with 
+| `Det _ | `Never as v -> v 
+| `Undet -> assert false
+
 let finally fn v fut = 
   let trap_finally fn v = try ignore (fn v) with
   | e ->

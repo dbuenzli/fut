@@ -2,7 +2,7 @@
 * Backend interface: introduce an Unsupported exception.
   given to the trap, for backend usage.
 * Add Fut.defer and backend support (for js like backends). 
-
+* Document toplevel (you need to load the backend first).
 * Folds 
   Fut.fold : ?dets:bool -> ('a -> 'b -> 'a) -> 'a -> 'b t list -> 'a t
   Fut.fold_sets : ('a -> 'b option -> 'a) -> 'a -> 'b t list -> 'a t
@@ -30,3 +30,4 @@
    violent.) 
   
 * Fut.pair : 'a t -> 'b t -> ('a * 'b) t ? 
+

@@ -47,6 +47,9 @@ val await : ?timeout:float -> 'a t -> 'a state
 
     @raise Invalid_argument if [timeout] is negative. *)
 
+val sync : 'a t -> [ `Never | `Det of 'a ] 
+(** [sync f] is like {!await} without timeout. *) 
+
 val finally : ('a -> 'b) -> 'a -> 'c t -> 'c t
 (** [finally fn v f] is [f] but [fn v] is called (and its result
     ignored) whenever [f] is set and immediately if [f] is already set
