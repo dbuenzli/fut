@@ -849,6 +849,7 @@ let tick d =
 (* Error handling *) 
 
 type ('a, 'b) result = [ `Ok of 'a | `Error of 'b ]
+type ('a, 'b) status = ('a, 'b) result t
 
 let ebind f fn =
   bind f @@ function

@@ -311,16 +311,17 @@ val delay : float -> float t
 val tick : float -> unit t
 (** [tick d] is {!ignore} [(]{!delay} [d)]. *)
 
-(** {1 Error handling} *)
+(** {1 Error handling and status futures} *)
 
 type ('a, 'b) result = [ `Ok of 'a | `Error of 'b ]
 (** The type for results with errors. *)
  
-val ebind : ('a, 'c) result t -> ('a -> ('b, 'c) result t) -> 
-  ('b, 'c) result t
+type ('a, 'b) status = ('a, 'b) result t 
+(** The type for statuses. A future determining a result. *) 
 
-val ok : 'a -> ('a, 'b) result t
-val error : 'b -> ('a, 'b) result t
+val ebind : ('a, 'c) status -> ('a -> ('b, 'c) status) -> ('b, 'c) status
+val ok : 'a -> ('a, 'b) status
+val error : 'b -> ('a, 'b) status
 
 (** {1 Infix operators} 
 
@@ -329,8 +330,7 @@ val error : 'b -> ('a, 'b) result t
 val (>>=) : 'a t -> ('a -> 'b t) -> 'b t
 (** [f >>= fn] is [bind f fn]. *)
 
-val (&>>=) : ('a, 'c) result t -> ('a -> ('b, 'c) result t) -> 
-  ('b, 'c) result t
+val (&>>=) : ('a, 'c) status -> ('a -> ('b, 'c) status) -> ('b, 'c) status
 (** [f &>>= fn] is [ebind f fn]. *)
 
 (** Infix operators. 
