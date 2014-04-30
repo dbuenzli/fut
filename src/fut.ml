@@ -851,7 +851,7 @@ let tick d =
 type ('a, 'b) result = [ `Ok of 'a | `Error of 'b ]
 type ('a, 'b) status = ('a, 'b) result t
 
-let ebind f fn =
+let sbind f fn =
   bind f @@ function
   | `Error _  as e -> ret e 
   | `Ok v -> fn v
@@ -860,11 +860,11 @@ let ok v = { state = `Det (`Ok v) }
 let error e = { state = `Det (`Error e) }
 
 let ( >>= ) = bind           (* we have it here aswell for Fut.() notation. *) 
-let ( &>>= ) = ebind
+let ( &>>= ) = sbind
  
 module Ops = struct
   let ( >>= ) = bind
-  let ( &>>= ) = ebind
+  let ( &>>= ) = sbind
 end
 
 (*---------------------------------------------------------------------------

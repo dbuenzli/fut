@@ -319,7 +319,7 @@ type ('a, 'b) result = [ `Ok of 'a | `Error of 'b ]
 type ('a, 'b) status = ('a, 'b) result t 
 (** The type for statuses. A future determining a result. *) 
 
-val ebind : ('a, 'c) status -> ('a -> ('b, 'c) status) -> ('b, 'c) status
+val sbind : ('a, 'c) status -> ('a -> ('b, 'c) status) -> ('b, 'c) status
 val ok : 'a -> ('a, 'b) status
 val error : 'b -> ('a, 'b) status
 
@@ -331,7 +331,7 @@ val (>>=) : 'a t -> ('a -> 'b t) -> 'b t
 (** [f >>= fn] is [bind f fn]. *)
 
 val (&>>=) : ('a, 'c) status -> ('a -> ('b, 'c) status) -> ('b, 'c) status
-(** [f &>>= fn] is [ebind f fn]. *)
+(** [f &>>= fn] is [sbind f fn]. *)
 
 (** Infix operators. 
 
@@ -345,7 +345,7 @@ module Ops : sig
 
   val (&>>=) : ('a, 'c) result t -> ('a -> ('b, 'c) result t) -> 
     ('b, 'c) result t
-  (** [f &>>= fn] is [ebind f fn]. *)
+  (** [f &>>= fn] is [sbind f fn]. *)
 end
 
 (** {1 Runtime system} *)
