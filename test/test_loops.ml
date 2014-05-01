@@ -8,7 +8,7 @@
 
    In drawings F --> F' means F waits on F'.  *) 
 
-open Fut.Ops
+open Fut.Op
 open Testing
   
 (* Immediate, should not blow the stack. *)

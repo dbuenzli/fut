@@ -4,7 +4,7 @@
    %%NAME%% release %%VERSION%%
   ---------------------------------------------------------------------------*)
 
-open Fut.Ops
+open Fut.Op
 
 (* Unix results and errors *) 
 

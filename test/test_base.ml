@@ -6,7 +6,7 @@
 
 (* Tests the basic combinators. *)
 
-open Fut.Ops
+open Fut.Op
 open Testing
 
 let finally () = 

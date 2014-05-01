@@ -867,7 +867,7 @@ let error e = { state = `Det (`Error e) }
 let ( >>= ) = bind           (* we have it here aswell for Fut.() notation. *) 
 let ( &>>= ) = sbind
  
-module Ops = struct
+module Op = struct
   let ( >>= ) = bind
   let ( &>>= ) = sbind
 end

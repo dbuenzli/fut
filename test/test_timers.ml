@@ -6,7 +6,7 @@
 
 (* Tests the runtime's timer functionality and timer combinators. *)
 
-open Fut.Ops
+open Fut.Op
 open Testing
 
 let timers () = 

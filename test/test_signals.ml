@@ -6,8 +6,8 @@
 
 (* Tests the runtime's system signal functionality and Futu.signal *) 
 
-open Fut.Ops;;
-open Testing;;
+open Fut.Op
+open Testing
 
 let send_signal = 
   let self = Unix.getpid () in

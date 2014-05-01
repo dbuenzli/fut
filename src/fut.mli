@@ -339,7 +339,7 @@ val (&>>=) : ('a, 'c) status -> ('a -> ('b, 'c) status) -> ('b, 'c) status
 (** Infix operators. 
 
     In a module to open. *)
-module Ops : sig
+module Op : sig
 
   (** {1 Binding operators} *)
 
