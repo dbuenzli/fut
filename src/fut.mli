@@ -333,8 +333,8 @@ val error : 'b -> ('a, 'b) status
 val (>>=) : 'a t -> ('a -> 'b t) -> 'b t
 (** [f >>= fn] is [bind f fn]. *)
 
-val (&>>=) : ('a, 'c) status -> ('a -> ('b, 'c) status) -> ('b, 'c) status
-(** [f &>>= fn] is [sbind f fn]. *)
+val (>>&) : ('a, 'c) status -> ('a -> ('b, 'c) status) -> ('b, 'c) status
+(** [f >>& fn] is [sbind f fn]. *)
 
 (** Infix operators. 
 
@@ -346,9 +346,9 @@ module Op : sig
   val (>>=) : 'a t -> ('a -> 'b t) -> 'b t
   (** [f >>= fn] is [bind f fn]. *)
 
-  val (&>>=) : ('a, 'c) result t -> ('a -> ('b, 'c) result t) -> 
+  val (>>&) : ('a, 'c) result t -> ('a -> ('b, 'c) result t) -> 
     ('b, 'c) result t
-  (** [f &>>= fn] is [sbind f fn]. *)
+  (** [f >>& fn] is [sbind f fn]. *)
 end
 
 (** {1 Runtime system} *)
