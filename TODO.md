@@ -19,8 +19,6 @@
 * select(2) backend is not forkable yet because of the self-pipe.
   Should we have a Runtime.forked () call ?
   
-* Fut.finally should we pass 'c ? 
-
 * Fut.determine : 'a t -> until:'b t -> [ `Abort of 'b | `Det of 'a ]
   (the name should reflect that we give a chance to determine before being
    violent)
