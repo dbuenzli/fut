@@ -6,6 +6,7 @@
 
 let str = Printf.sprintf 
 
+let err_undet = str "the future is undetermined" 
 let err_promise_set = str "promise is already set" 
 let err_invalid_timeout t = str "timeout value must be positive (%f)" t
 
@@ -393,7 +394,12 @@ let state fut = match (src fut).state with
 | `Det _ | `Never as v -> v
 | `Undet _ -> `Undet
 | `Alias _ -> assert false
-    
+
+let state_set fut = match (src fut).state with 
+| `Det _ | `Never as v -> v
+| `Undet _ -> invalid_arg err_undet
+| `Alias _ -> assert false    
+
 let await ?(timeout = max_float) fut = 
   if timeout < 0. then invalid_arg (err_invalid_timeout timeout) else
   match (src fut).state with

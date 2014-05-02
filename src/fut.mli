@@ -43,6 +43,13 @@ val state : 'a t -> 'a state
 
     {b Thread-safe.} This function can be called by other threads. *)
 
+val state_set : 'a t -> 'a set
+(** [state_set f] is the set state of [f]. 
+
+    @raise Invalid_argument if [f] is not [s].
+
+    {b Thread-safe.} This function can be called by other threads. *)
+
 val await : ?timeout:float -> 'a t -> 'a state
 (** [await timeout f], is like {!state} except if [f] is undetermined
     it waits until [f] is set or [timeout] seconds passed. If [timeout] 
