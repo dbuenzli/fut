@@ -35,6 +35,9 @@ type 'a state = [ `Never | `Undet | `Det of 'a ]
     if the future is undetermined. If the state is different from [`Undet],
     the future is {e set}. *)
 
+type 'a set = [ `Never | `Det of 'a ] 
+(** The type for set future states. See {!state}. *) 
+
 val state : 'a t -> 'a state
 (** [state f] is the current state of [f]. 
 
@@ -47,8 +50,8 @@ val await : ?timeout:float -> 'a t -> 'a state
 
     @raise Invalid_argument if [timeout] is negative. *)
 
-val sync : 'a t -> [ `Never | `Det of 'a ] 
-(** [sync f] is like {!await} without timeout. *) 
+val sync : 'a t -> 'a set 
+(** [sync f] is like {!await} but blocks until [f] is set. *) 
 
 val finally : ('a -> 'b) -> 'a -> 'c t -> 'c t
 (** [finally fn v f] is [f] but [fn v] is called (and its result
