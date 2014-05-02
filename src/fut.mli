@@ -15,6 +15,8 @@
     while {{!queues}future queues} determine the value of blocking or
     long running function applications with a set of concurrent
     workers and act as a mutual exclusion synchronization primitive.
+    {{!semaphores}Semaphores} allow to limit the resource usage of
+    a set of determining futures.
 
     The separate {!Futu} library exposes {!Unix} system calls as
     futures. 
@@ -325,6 +327,50 @@ val delay : float -> float t
 val tick : float -> unit t
 (** [tick d] is {!ignore} [(]{!delay} [d)]. *)
 
+(** {1:semaphores Semaphores} *)
+
+(** Semaphores for limiting resource usage. 
+    
+    TODO doc.  *)
+module Sem : sig
+
+  (** {1 Semaphores} *) 
+
+  type 'a future = 'a t
+
+  type token 
+  (** The type for tokens. *)
+
+  type t 
+  (** The type for semaphores. *) 
+
+  val create : capacity:int -> t
+  (** [create capacity] is a semaphore with a token capacity of [capacity]. *) 
+    
+  val capacity : t -> int
+  (** [capacity s] is [s]'s token capacity. *) 
+    
+  val available : t -> int
+  (** [available s] is [s]'s number of available tokens. *) 
+    
+  val take : t -> token future
+  (** [take s] is a future that determines as follows:
+      {ul 
+      {- If at call time [available s > 0], decrements [available s] and
+         determines a token immediately.}
+      {- Otherwise determines when [available s] becomes [> 0] and 
+         all previous futures resulting from [take s] have been set (i.e. 
+         you are served in FIFO order).}} *)
+
+  val return : t -> token -> unit
+  (** [return s token] returns the token [token] to [s]. As a side
+      effect, determines the first non set [take s] future waiting (if
+      any).
+
+      @raise Invalid_argument if [token] was already returned or 
+      if [token] doesn't belong to [s]. *)    
+end
+
 (** {1 Error handling and status futures} *)
 
 type ('a, 'b) result = [ `Ok of 'a | `Error of 'b ]
@@ -630,7 +676,6 @@ let _ = Fut.abort long_work (* will set abort to [true] *)
 ]}
    Note that the runtime system never reads abort it just sets it to 
    [true] when appropriate.
-
 
     {2:promises Promises}
 

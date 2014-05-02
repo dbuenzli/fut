@@ -9,7 +9,8 @@ let str = Printf.sprintf
 let err_undet = str "the future is undetermined" 
 let err_promise_set = str "promise is already set" 
 let err_invalid_timeout t = str "timeout value must be positive (%f)" t
-
+let err_token_ret = str "token already returned" 
+let err_token_sem = str "token doesn't belong this semaphore" 
 let nop () = ()
 
 (* A future is a mutable state of type ['a _state] (the interface does
@@ -811,6 +812,44 @@ let set promise set =
       end
   | `Det _ -> () | `Never -> ()
   | `Alias _ -> assert false
+
+(* Semaphores *) 
+
+module Sem = struct
+  type 'a future = 'a t
+  type token = { mutable returned : bool; sem : t }
+  and t = 
+    { capacity : int; 
+      mutable available : int; 
+      waits : (token promise) Queue.t } 
+
+  let token s = { returned = false; sem = s }
+  let token_return s t = 
+    if t.returned then invalid_arg err_token_ret else 
+    if t.sem != s then invalid_arg err_token_sem else 
+    t.returned <- true
+
+  let create ~capacity = 
+    { capacity; available = capacity; waits = Queue.create () }
+
+  let capacity s = s.capacity
+  let available s = s.available
+  let take s = 
+    if s.available > 0 
+    then (s.available <- s.available - 1; ret (token s)) 
+    else let p = promise () in (Queue.add p s.waits; future p)
+                                   
+  let rec return s t = 
+    let rec next () = 
+      if Queue.is_empty s.waits then (s.available <- s.available + 1;) else
+      let p = Queue.take s.waits in 
+      match state (future p) with
+      | `Never -> next ()
+      | `Undet -> set p (`Det (token s))
+      | `Det _ -> assert false
+    in
+    token_return s t; next ()
+end                                                     
 
 (* Future queues *)
 

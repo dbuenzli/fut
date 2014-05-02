@@ -29,3 +29,4 @@
   
 * Fut.pair : 'a t -> 'b t -> ('a * 'b) t ? 
 
+* Test Fut.Sem
