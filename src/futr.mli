@@ -10,16 +10,20 @@ open React
 
 (** {1 Events} *) 
 
-val to_event : ?never:'a -> 'a Fut.t -> 'a event 
-(** [to_event f] occurs {e once} when [f] determines. If [f] is 
+val to_event : ?never:'a -> (unit -> 'a Fut.t) -> 'a event 
+(** [to_event f] occurs {e once} when [f ()] determines. If [f] is 
     set to never determine the event never occurs unless [never]
-    is specified in which case it occurs with the value [never]. *)
+    is specified in which case it occurs with the value [never]. 
+
+    {b Important.} It is better if [f] actually creates the future 
+    rather than being a closure that captures an already created
+    future. The reason is that TODO. *)
 
 val of_event : 'a event -> 'a Fut.t
 (** [of_event e] is a future that determines on the next occurence of [e]. 
 
-    {b TODO} Make a note about update step, basically defer if 
-    recursive feedback is possible (or should we do it directly ?). *)
+    {b Note.} The React update step generating the occurence of [s]
+    is guaranteed to terminate before the future determines. *)
 
 (*---------------------------------------------------------------------------
    Copyright (c) 2014 Daniel C. Bünzli.

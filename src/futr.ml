@@ -14,8 +14,9 @@ let to_event ?never f =
   | `Never -> (match never with None -> () | Some v -> send v)
   | `Undet -> assert false 
   in
-  ignore (Fut.delay 0.0001 (* TODO Fut.defer *) 
-          >>= fun _ -> Fut.finally finally f f); 
+  ignore (Fut.delay 0.0001 (* TODO Fut.defer *) >>= fun _ ->
+          let f = f () in
+          Fut.finally finally f f); 
   e
 
 let of_event e =
