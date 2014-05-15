@@ -2,14 +2,21 @@ Fut — Future values for asynchronous programming in OCaml
 -------------------------------------------------------------------------------
 Release %%VERSION%%
 
-Fut is an OCaml module for asynchronous programming in OCaml. It
-provides support to program with future values. A future value is a
-value becomes available at some point in the future.
+Fut is a library for asynchronous programming in OCaml. It provides
+support to program with values that determine at some point in the
+future: future values.
 
-Fut is distributed under the BSD3 license. 
+Fut can be used with different schedulers. An API allows to implement
+new schedulers. The library comes with a scheduler based on select(2)
+that depends on the Unix library and a JavaScript backend that depends
+on [js_of_ocaml][1].
+
+Fut and its schedulers are distributed under the BSD3 license.
 
 Home page: http://erratique.ch/software/fut    
 Contact: Daniel Bünzli `<daniel.buenzl i@erratique.ch>`
+
+[1]: http://ocsigen.org/js_of_ocaml/
 
 
 ## Installation

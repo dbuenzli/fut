@@ -1,4 +1,4 @@
-<**/*.{ml,mli}> : bin_annot, annot
+<**/*.{ml,mli}> : bin_annot, annot, debug
 <src> : include
 <src/select> : include
 <src/jsoo> : include
