@@ -74,8 +74,8 @@ and 'a undet =                                        (* undetermined state. *)
    Future [`Never] determines
    --------------------------
 
-   If a future [fut] is set to [`Never] determine it is aborted. There are 
-   two kind of aborts: shallow and deep aborts. 
+   If a future [fut] is set to [`Never] determine, it is aborted. There are
+   two kinds of aborts: shallow and deep aborts.
 
    ## Shallow aborts (applicative combinators)
   

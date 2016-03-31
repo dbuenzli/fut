@@ -13,7 +13,7 @@
 * Fut.firstl define semantics for empty list, also 
   underdefind with future that set to never determine.
 * Fut.{first,pick} should we tag with `Left | `Right maybe less 
-  Fut.map's would need to be introcuded ? But then Fut.{firstl,pickl}
+  Fut.map's would need to be introduced ? But then Fut.{firstl,pickl}
   wouldn't tag.
 
 * select(2) backend is not forkable yet because of the self-pipe.
