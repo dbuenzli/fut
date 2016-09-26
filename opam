@@ -1,9 +1,11 @@
-opam-version: "1"
+opam-version: "1.2"
 maintainer: "Daniel Bünzli <daniel.buenzl i@erratique.ch>"
 homepage: "http://erratique.ch/software/fut"
 authors: ["Daniel Bünzli <daniel.buenzl i@erratique.ch>"]
 doc: "http://erratique.ch/software/fut/doc/Fut"
-tags: [ "future" "asynchronous" "system" ]
+dev-repo: "http://erratique.ch/repos/fut.git"
+bug-reports: "https://github.com/dbuenzli/fut/issues"
+tags: [ "future" "asynchronous" "system" "org:erratique" ]
 license: "BSD3"
 ocaml-version: [>= "4.00.0"]
 depends: [ "ocamlfind" ]
