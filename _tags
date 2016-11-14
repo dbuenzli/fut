@@ -1,4 +1,5 @@
-<**/*.{ml,mli}> : bin_annot, annot, debug
+true : bin_annot
+
 <src> : include
 <src/select> : include
 <src/jsoo> : include
@@ -7,21 +8,16 @@
 <src/select/fut_select.*> : thread, package(threads), package(unix)
 <src/select/fut_backend.*> : thread
 
-<src/jsoo/fut_backend.*> : package(js_of_ocaml), \
-                           package(js_of_ocaml.syntax), \
-                           syntax(camlp4o)
+<src/jsoo/fut_backend.*> : package(js_of_ocaml), package(js_of_ocaml.ppx)
 
 <src/futr.*> : package(react)
 
 <test> : include
-<test/{test_select,cancel,sbox}.{ml,mli,byte,native}> : debug, thread, \
-                                                        package(threads), \
-                                                        package(unix), \
-                                                        use_fut_select
+<test/{test_select,cancel,sbox}.*> : package(threads), \
+                                     package(unix), \
+                                     use_fut_select
 
-<test/test_jsoo.{ml,mli,byte}> : package(js_of_ocaml), \
-                                 package(js_of_ocaml.syntax), \
-                                 syntax(camlp4o), \
-                                 use_fut_jsoo
+<test/test_jsoo.*> : package(js_of_ocaml), package(js_of_ocaml.ppx), \
+                     use_fut_jsoo
 
 <test/uclient.{byte,native}> : thread, package(unix), package(threads)

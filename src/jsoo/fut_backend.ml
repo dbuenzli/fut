@@ -8,7 +8,7 @@
 
 let name = "fut.jsoo" 
 
-let now_ms () = jsnew Js.date_now () ## getTime ()
+let now_ms () = (new%js Js.date_now) ## getTime
  
 let start () = ()
 let stop () = ()
@@ -31,7 +31,7 @@ let timer_action d def =
   | None -> ()
   | Some action -> action ((now_ms () -. exp_time_ms) /. 1000.)
   in
-  ignore (Dom_html.window ## setTimeout (Js.wrap_callback cb, ms)); 
+  ignore (Dom_html.window ## (setTimeout (Js.wrap_callback cb) ms)); 
   v
 
 let fd_action state fd a = failwith "TODO"

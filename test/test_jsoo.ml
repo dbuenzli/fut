@@ -11,9 +11,9 @@ module Futj : sig
   val async_await : ?timeout:float -> 'a Fut.t -> ('a Fut.state -> unit) -> unit
 end = struct
   let yield f = 
-    ignore (Dom_html.window ## setTimeout (Js.wrap_callback f, 0.))
+    ignore (Dom_html.window ## (setTimeout (Js.wrap_callback f) (0.)))
       
-  let now_ms () = jsnew Js.date_now () ## getTime ()
+  let now_ms () = (new%js Js.date_now) ## getTime
                   
   let async_await ?(timeout = max_float) fut k = 
     let start = now_ms () in
@@ -26,9 +26,9 @@ end = struct
             if timeout <> max_float && (now_ms () -. start) > timeout *. 1000.
           then k `Undet 
           else 
-          ignore (Dom_html.window ## setTimeout (Js.wrap_callback cb, 0.))
+          ignore (Dom_html.window ## (setTimeout (Js.wrap_callback cb) (0.)))
         in
-      ignore (Dom_html.window ## setTimeout (Js.wrap_callback cb, 0.))
+      ignore (Dom_html.window ## (setTimeout (Js.wrap_callback cb) (0.)))
 
 
 (*
@@ -104,7 +104,7 @@ let main _ =
   end;
   Js._false 
 
-let () = Dom_html.window ## onload <- Dom_html.handler main
+let () = Dom_html.window ##. onload := Dom_html.handler main
 
 (*---------------------------------------------------------------------------
    Copyright (c) 2014 Daniel C. Bünzli.

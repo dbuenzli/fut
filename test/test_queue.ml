@@ -6,8 +6,8 @@
 
 (* Tests future queues. *)
 
-open Fut.Ops;;
-open Test;;
+open Fut.Op
+open Testing
 
 let apply () = 
   log "Test apply\n";  
