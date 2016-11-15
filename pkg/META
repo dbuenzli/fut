@@ -8,7 +8,7 @@ exists_if = "fut.cma"
 
 package "u" (
   version = "%%VERSION%%"
-  requires = "unix fut"
+  requires = "bytes unix fut"
   description = "Unix system calls as futures"
   archive(byte) = "futu.cma"
   archive(byte, plugin) = "futu.cma"
@@ -28,14 +28,14 @@ package "r" (
   exists_if = "futr.cma"
 )
 
-# Backends 
+# Backends
 
-# For toplevel we need to load the backend before fut since the 
+# For toplevel we need to load the backend before fut since the
 # backend provides the implementation for Fut_backend that fut needs.
-# For this reason the toploop predicate is not specified in fut but in 
-# backends and the user should just #require directly the backend, this 
-# will load things properly modulo a #thread invocation before (FIXME: is 
-# it possible to have this invocation ensured automatically ?). 
+# For this reason the toploop predicate is not specified in fut but in
+# backends and the user should just #require directly the backend, this
+# will load things properly modulo a #thread invocation before (FIXME: is
+# it possible to have this invocation ensured automatically ?).
 
 package "top" (
  version = "%%VERSION%%"
