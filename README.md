@@ -11,7 +11,7 @@ new schedulers. The library comes with a scheduler based on select(2)
 that depends on the Unix library and a JavaScript backend that depends
 on [js_of_ocaml][1].
 
-Fut and its schedulers are distributed under the BSD3 license.
+Fut and its schedulers are distributed under the ISC license.
 
 Home page: http://erratique.ch/software/fut    
 Contact: Daniel Bünzli `<daniel.buenzl i@erratique.ch>`

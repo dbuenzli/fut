@@ -6,16 +6,15 @@ doc: "http://erratique.ch/software/fut/doc/Fut"
 dev-repo: "http://erratique.ch/repos/fut.git"
 bug-reports: "https://github.com/dbuenzli/fut/issues"
 tags: [ "future" "asynchronous" "system" "org:erratique" ]
-license: "BSD3"
+license: "ISC"
 ocaml-version: [>= "4.00.0"]
 depends: [ "ocamlfind" ]
 depopts: [ "base-unix" "react" "js_of_ocaml" ]
-build: 
+build:
 [
-  ["./pkg/pkg-git" ] 
-  ["./pkg/build" "true" 
+  ["./pkg/pkg-git" ]
+  ["./pkg/build" "true"
                  "%{base-unix:installed}%"
                  "%{react:installed}%"
                  "%{js_of_ocaml:installed}%" ]
 ]
-
