@@ -7,14 +7,22 @@ dev-repo: "http://erratique.ch/repos/fut.git"
 bug-reports: "https://github.com/dbuenzli/fut/issues"
 tags: [ "future" "asynchronous" "system" "org:erratique" ]
 license: "ISC"
-ocaml-version: [>= "4.00.0"]
-depends: [ "ocamlfind" ]
-depopts: [ "base-unix" "react" "js_of_ocaml" ]
-build:
-[
-  ["./pkg/pkg-git" ]
-  ["./pkg/build" "true"
-                 "%{base-unix:installed}%"
-                 "%{react:installed}%"
-                 "%{js_of_ocaml:installed}%" ]
+available: [ ocaml-version >= "4.01.0" ]
+depends: [
+  "ocamlfind" {build}
+  "ocamlbuild" {build}
+  "topkg" {build}
+  "result"
 ]
+depopts: [
+  "base-unix"
+  "react"
+  "js_of_ocaml"
+]
+build: [[
+  "ocaml" "pkg/pkg.ml" "build"
+          "--pinned" "%{pinned}%"
+          "--with-base-unix" "%{base-unix:installed}%"
+          "--with-react" "%{react:installed}%"
+          "--with-js_of_ocaml" "%{js_of_ocaml:installed}%"
+]]

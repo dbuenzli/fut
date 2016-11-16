@@ -1,19 +1,19 @@
 description = "Future values for asynchronous programming"
 version = "%%VERSION%%"
+requires = ""
 archive(byte) = "fut.cma"
-archive(byte, plugin) = "fut.cma"
 archive(native) = "fut.cmxa"
-archive(native, plugin) = "fut.cmxs"
-exists_if = "fut.cma"
+plugin(byte) = "fut.cma"
+plugin(native) = "fut.cmxs"
 
 package "u" (
   version = "%%VERSION%%"
   requires = "bytes unix fut"
   description = "Unix system calls as futures"
   archive(byte) = "futu.cma"
-  archive(byte, plugin) = "futu.cma"
   archive(native) = "futu.cmxa"
-  archive(native, plugin) = "futu.cmxs"
+  plugin(byte) = "futu.cma"
+  plugin(native) = "futu.cmxs"
   exists_if = "futu.cma"
 )
 
@@ -22,9 +22,9 @@ package "r" (
   requires = "react fut"
   description = "Futures as React events and vice-versa"
   archive(byte) = "futr.cma"
-  archive(byte, plugin) = "futr.cma"
   archive(native) = "futr.cmxa"
-  archive(native, plugin) = "futr.cmxs"
+  plugin(byte) = "futr.cma"
+  plugin(native) = "futr.cmxs"
   exists_if = "futr.cma"
 )
 
@@ -32,44 +32,41 @@ package "r" (
 
 # For toplevel we need to load the backend before fut since the
 # backend provides the implementation for Fut_backend that fut needs.
-# For this reason the toploop predicate is not specified in fut but in
-# backends and the user should just #require directly the backend, this
+# The user should just #require directly the backend, this
 # will load things properly modulo a #thread invocation before (FIXME: is
 # it possible to have this invocation ensured automatically ?).
 
-package "top" (
- version = "%%VERSION%%"
- description = "Toplevel module for Fut"
- requires = "compiler-libs.toplevel"
- archive(byte) = "fut_top.cma"
- archive(byte, plugin) = "fut_top.cma"
- archive(native) = "fut_top.cmxa"
- archive(native, plugin) = "fut_top.cmxs"
- exists_if = "fut_top.cma"
+package "backend-base" (
+  version = "%%VERSION%%"
+  description = "Fut's backend base library"
+  requires = ""
+  archive(byte) = "fut_backend_base.cma"
+  archive(native) = "fut_backend_base.cmxa"
+  plugin(byte) = "fut_backend_base.cma"
+  plugin(native) = "fut_backend_base.cmxs"
+  exists_if = "fut_backend_base.cma"
 )
 
 package "select" (
   version = "%%VERSION%%"
   description = "Fut's UNIX select(2) backend"
-  requires = "threads unix"
+  requires = "threads unix fut.backend-base"
+  directory = "select"
   archive(byte) = "fut_select.cma"
-  archive(byte, plugin) = "fut_select.cma"
-  archive(byte, toploop) += "fut.cma fut_top.cma"
   archive(native) = "fut_select.cmxa"
-  archive(native, plugin) = "fut_select.cmxs"
-  archive(native, toploop) += "fut.cmxa fut_top.cmxa"
+  plugin(byte) = "fut_select.cma"
+  plugin(native) = "fut_select.cmxs"
   exists_if = "fut_select.cma"
 )
 
 package "jsoo" (
   version = "%%VERSION%%"
   description = "Fut's js_of_ocaml backend"
-  requires = "js_of_ocaml js_of_ocaml.syntax"
+  requires = "js_of_ocaml js_of_ocaml.syntax fut.backend-base"
+  directory = "jsoo"
   archive(byte) = "fut_jsoo.cma"
-  archive(byte, plugin) = "fut_jsoo.cma"
-  archive(byte, toploop) += "fut.cma fut_top.cma"
   archive(native) = "fut_jsoo.cmxa"
-  archive(native, plugin) = "fut_jsoo.cmxs"
-  archive(native, toploop) += "fut.cmxa fut_top.cmxa"
+  plugin(byte) = "fut_jsoo.cma"
+  plugin(native) = "fut_jsoo.cmxs"
   exists_if = "fut_jsoo.cma"
 )

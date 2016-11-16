@@ -17,8 +17,9 @@
 
     {b Important.} File descriptors created outside this module
     must be set to non-blocking mode with {!Unix.set_nonblock}
-    before they are used with functions of this module. *)
+    before they are used with functions of this module.
 
+    {e %%VERSION%% — {{:%%PKG_HOMEPAGE%% }homepage}} *)
 
 (** {1 Unix results and errors} *)
 

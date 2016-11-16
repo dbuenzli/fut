@@ -4,41 +4,41 @@
    %%NAME%% %%VERSION%%
   ---------------------------------------------------------------------------*)
 
-(* Tests the runtime's system signal functionality and Futu.signal *) 
+(* Tests the runtime's system signal functionality and Futu.signal *)
 
 open Fut.Op
 open Testing
 
-let send_signal = 
+let send_signal =
   let self = Unix.getpid () in
   fun s -> Unix.kill self s
 
 let signal_twice () =
-  log_test "Test signal twice";  
+  log_test "Test signal twice";
   let s = Sys.sigusr1 in
   let f = Futu.signal s in
   is_undet f;
-  send_signal s; 
+  send_signal s;
   is_undet f;
   ignore (Fut.await f);
-  is_det f s; 
+  is_det f s;
   send_signal s;
   ignore (Fut.await f);
-  is_det f s; 
+  is_det f s;
   ()
 
-let signal_abort () = 
-  log_test "Test signal abort"; 
-  let s = Sys.sigusr1 in 
-  let f = Fut.map (fun x -> Some x) (Futu.signal s) in 
-  is_undet f; 
-  Fut.abort f; 
+let signal_abort () =
+  log_test "Test signal abort";
+  let s = Sys.sigusr1 in
+  let f = Fut.map (fun x -> Some x) (Futu.signal s) in
+  is_undet f;
+  Fut.abort f;
   is_never f;
   send_signal s;
-  ignore (Fut.await f); 
+  ignore (Fut.await f);
   is_never f;
   ()
-  
+
 let suite () =
   log_suite "Testing signals";
   signal_twice ();

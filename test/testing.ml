@@ -7,34 +7,34 @@
 (* Common test infrastructure *)
 
 let assert_count = ref 0
-let failure_count = ref 0 
+let failure_count = ref 0
 
 let exn_to_str = Printexc.to_string
-let str = Format.sprintf 
-let pp = Format.fprintf 
-let log f = Format.printf (f ^^ "@?") 
+let str = Format.sprintf
+let pp = Format.fprintf
+let log f = Format.printf (f ^^ "@?")
 let log_test f = Format.printf ( "* " ^^ f ^^ "@.")
 let log_suite f = Format.printf ( f ^^ "@.")
 let log_results () =
   if !failure_count > 0 then begin
-    log "There were %d failure out of %d assertions" 
+    log "There were %d failure out of %d assertions"
       !failure_count !assert_count;
     false
-  end else begin 
-    log "All tests suceeded (%d assertions).@." !assert_count; 
-    true 
+  end else begin
+    log "All tests suceeded (%d assertions).@." !assert_count;
+    true
   end
 
-let fail fmt = 
-  let fail _ = failwith (Format.flush_str_formatter ()) in 
+let fail fmt =
+  let fail _ = failwith (Format.flush_str_formatter ()) in
   Format.kfprintf fail Format.str_formatter fmt
 
 let pp_state ppf = function
-| `Never -> pp ppf "`Never" 
-| `Det _ -> pp ppf "`Det _" 
+| `Never -> pp ppf "`Never"
+| `Det _ -> pp ppf "`Det _"
 | `Undet -> pp ppf "`Undet"
 
-let pp_exn_ctx ppf = function 
+let pp_exn_ctx ppf = function
 | `Queue l -> pp ppf "`Queue %s" l
 | `Future -> pp ppf "`Future"
 | `Finalizer -> pp ppf "`Finalizer"
@@ -45,33 +45,33 @@ let pp_exn_ctx ppf = function
 | `Runtime_action -> pp ppf "`Runtime_action"
 | `Exn_trap -> pp ppf "`Exn_trap"
 
-let stack_to_loc stack =                                         (* Grrrrr. *) 
+let stack_to_loc stack =                                         (* Grrrrr. *)
   let stack = Printexc.raw_backtrace_to_string stack in
   try
-    let start = String.index stack '\n' in 
-    let fstart = String.index_from stack start '\"' + 1 in 
+    let start = String.index stack '\n' in
+    let fstart = String.index_from stack start '\"' + 1 in
     let fend = String.rindex stack '\"' - 1 in
     let file = String.sub stack fstart (fend - fstart + 1) in
     let lstart = fend + 9 in
     let lend = String.rindex stack ',' - 1 in
     let line = String.sub stack lstart (lend - lstart + 1) in
     str "%s:%d: " file (int_of_string line)
-  with 
-  | Not_found | Failure _ -> "????:??:" 
+  with
+  | Not_found | Failure _ -> "????:??:"
 
-let log_fail loc fmt = 
+let log_fail loc fmt =
   let loc = stack_to_loc loc in
-  incr failure_count; 
+  incr failure_count;
   Format.printf ("  %s" ^^ fmt ^^ "@.") loc
 
-let is_state f s = 
-  incr assert_count; 
+let is_state f s =
+  incr assert_count;
   let loc = Printexc.get_callstack 2 in
-  let s' = Fut.state f in 
-  match s, s' with 
-  | `Det a, `Det b when a <> b -> 
-      log_fail loc "determined unexpected value" 
-  | s, s' when s <> s' -> 
+  let s' = Fut.state f in
+  match s, s' with
+  | `Det a, `Det b when a <> b ->
+      log_fail loc "determined unexpected value"
+  | s, s' when s <> s' ->
       log_fail loc "expected %a found %a" pp_state s pp_state s'
   | _ , _ -> ()
 
@@ -81,36 +81,36 @@ let is_undet f = is_state f `Undet
 
 let (record_trap : (unit -> unit)),
     (trapped : ([ `Exn of Fut.Runtime.exn_ctx * exn | `Nothing ] -> unit) )
-  = 
-  (* TODO count and don't fail like in is_state *) 
-  let trapped = ref `Nothing in 
+  =
+  (* TODO count and don't fail like in is_state *)
+  let trapped = ref `Nothing in
   let record () =
     trapped := `Nothing;
-    let trap (ctx, e, _) = match !trapped with 
-    | `Exn (ctx, exn) -> 
+    let trap (ctx, e, _) = match !trapped with
+    | `Exn (ctx, exn) ->
         (* TODO does set_exn_trap guard against exceptions ? *)
-        fail "trap already invoked (exn %s in %a)" 
+        fail "trap already invoked (exn %s in %a)"
           (exn_to_str exn) pp_exn_ctx ctx
-    | `Nothing -> trapped := `Exn (ctx, e) 
+    | `Nothing -> trapped := `Exn (ctx, e)
     in
-    Fut.Runtime.set_exn_trap trap 
+    Fut.Runtime.set_exn_trap trap
   in
-  let trapped spec = match spec, !trapped with 
-  | `Nothing, `Nothing -> () 
-  | `Exn (ctx, exn), `Exn (ctx', exn') -> 
-      if ctx <> ctx' 
+  let trapped spec = match spec, !trapped with
+  | `Nothing, `Nothing -> ()
+  | `Exn (ctx, exn), `Exn (ctx', exn') ->
+      if ctx <> ctx'
       then fail "exn in %a, expected %a" pp_exn_ctx ctx' pp_exn_ctx ctx;
-      if exn <> exn' 
+      if exn <> exn'
       then fail "exn %s, expected %s" (exn_to_str exn') (exn_to_str exn);
-  | `Nothing, `Exn (ctx, exn) -> 
+  | `Nothing, `Exn (ctx, exn) ->
       fail "exn %s in %a, expected no trap" (exn_to_str exn) pp_exn_ctx ctx
-  | `Exn (ctx, exn), `Nothing -> 
+  | `Exn (ctx, exn), `Nothing ->
       fail "no trap, expected %s in %a" (exn_to_str exn) pp_exn_ctx ctx
   in
   record, trapped
 
 let promise () = let p = Fut.promise () in Fut.future p, p
-    
+
 (*---------------------------------------------------------------------------
    Copyright (c) 2012 Daniel C. Bünzli
 

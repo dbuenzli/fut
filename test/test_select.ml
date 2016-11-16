@@ -4,9 +4,9 @@
    %%NAME%% %%VERSION%%
   ---------------------------------------------------------------------------*)
 
-(* Tests the select(2) backend. *) 
+(* Tests the select(2) backend. *)
 
-let () = Test.main () 
+let () = Test.main ()
 
 (*---------------------------------------------------------------------------
    Copyright (c) 2014 Daniel C. Bünzli

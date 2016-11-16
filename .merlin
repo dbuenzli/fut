@@ -1,0 +1,5 @@
+PKG result react js_of_ocaml
+S src
+S src-select
+S src-jsoo
+B _build/**

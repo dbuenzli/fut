@@ -6,24 +6,24 @@
 
 open Fut.Op
 open React
-  
+
 let to_event ?never f =
-  let e, send = E.create () in 
-  let finally f = match Fut.state f with 
+  let e, send = E.create () in
+  let finally f = match Fut.state f with
   | `Det v -> send v
   | `Never -> (match never with None -> () | Some v -> send v)
-  | `Undet -> assert false 
+  | `Undet -> assert false
   in
   ignore (Fut.delay 0.0001 (* TODO Fut.defer *) >>= fun _ ->
           let f = f () in
-          Fut.finally finally f f); 
+          Fut.finally finally f f);
   e
 
 let of_event e =
-  let p = Fut.promise () in 
+  let p = Fut.promise () in
   let set v = Fut.set p (`Det v) in
   let set_ev = E.map set e in
-  let finally set_ev = E.stop set_ev in (* just to keep a ref on the event *) 
+  let finally set_ev = E.stop set_ev in (* just to keep a ref on the event *)
   Fut.delay 0.0001 (* TODO Fut.defer *)
   >>= fun _ -> (Fut.finally finally set_ev (Fut.future p))
 
