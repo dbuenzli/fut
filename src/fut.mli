@@ -371,7 +371,7 @@ module Sem : sig
       if [token] doesn't belong to [s]. *)
 end
 
-(** {1 Error handling and status futures} *)
+(** {1:error Error handling} *)
 
 type ('a, 'b) result = ('a, 'b) Result.result t
 (** The type for future results. A future determining a result values. *)
@@ -380,7 +380,7 @@ val rbind : ('a, 'c) result -> ('a -> ('b, 'c) result) -> ('b, 'c) result
 val ok : 'a -> ('a, 'b) result
 val error : 'b -> ('a, 'b) result
 
-(** {1 Infix operators}
+(** {1:infix Infix operators}
 
     Use of these operators may kill a few parentheses. *)
 
@@ -410,7 +410,7 @@ module Op : sig
   (** [f >>& fn] is [rbind f fn]. *)
 end
 
-(** {1 Runtime system} *)
+(** {1:runtime Runtime system} *)
 
 (** Runtime system configuration and interaction. *)
 module Runtime : sig
@@ -418,7 +418,7 @@ module Runtime : sig
   val name : string
   (** [name] is the backend name. *)
 
-  (** {1 Exception trap}
+  (** {1:exn_trap Exception trap}
 
       See also the section about {{!exceptions}exceptions}. *)
 
@@ -439,7 +439,7 @@ module Runtime : sig
   (** [pp_exn_info ppf i] prints an unspecified representation of [i]
       on [ppf]. *)
 
-  (** {1 Actions} *)
+  (** {1:actions Actions} *)
 
   type abort = unit -> unit
   (** The type for action's abort functions. Calling an abort function
@@ -450,7 +450,7 @@ module Runtime : sig
          [action] will never be called and will be eventually gc'd.}
       {- If the [action] was already executed, it has no effects.}} *)
 
-  (** {2 Runtime actions} *)
+  (** {2:runtime_actions Runtime actions} *)
 
   val action : (unit -> unit) -> unit
   (** [action a] executes [a ()] as soon as possible on the runtime system
@@ -458,7 +458,7 @@ module Runtime : sig
 
       {b Thread-safe.} This function can be called from other threads. *)
 
-  (** {2 Signal actions} *)
+  (** {2:signal_actions Signal actions} *)
 
   val signal_action : int -> (abort -> (int -> unit) * 'a) -> 'a
   (** [signal_action s def] calls [def] with an [abort] function
@@ -468,7 +468,7 @@ module Runtime : sig
       was called before, see {!abort} for details. The value [v] is
       simply returned by [signal_action]. *)
 
-  (** {2 Timer actions} *)
+  (** {2:timer_actions Timer actions} *)
 
   val timer_action : float -> (abort -> (float -> unit) * 'a) -> 'a
   (** [timer_action d def] calls [def] with an [abort] function to
@@ -477,7 +477,7 @@ module Runtime : sig
       was performed or never if [abort] was called before, see {!abort}
       for details. The value [v] is simply returned by [timer_action]. *)
 
-  (** {2 File descriptor actions and closing} *)
+  (** {2:fd_actions File descriptor actions and closing} *)
 
   val fd_action : [ `R | `W ] -> Unix.file_descr -> (bool -> unit) -> unit
   (** [fd_action fds fd a] executes [a true] whenever [fd] is in the
@@ -486,7 +486,7 @@ module Runtime : sig
   val fd_close : Unix.file_descr -> unit
   (** TODO *)
 
-  (** {1 Workers}
+  (** {1:workers Workers}
 
       {b Note.} Most of the time a worker maps to a system thread, but
       the exact semantics is backend dependent. Workers are typically
