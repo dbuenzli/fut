@@ -4,6 +4,7 @@
    %%NAME%% %%VERSION%%
   ---------------------------------------------------------------------------*)
 
+open Result
 open Fut.Op
 
 (* Unix results and errors *)
@@ -12,16 +13,16 @@ type error = [`Unix of Unix.error * string * string ]
 type ('a, 'b) result = ('a, [> error] as 'b) Fut.result
 
 let apply ?queue f v =
-  let rec f' v = try `Ok (f v) with
+  let rec f' v = try Ok (f v) with
   | Unix.Unix_error (Unix.EINTR, _, _) -> f' v
-  | Unix.Unix_error (e, fn, v) -> `Error (`Unix (e, fn, v))
+  | Unix.Unix_error (e, fn, v) -> Error (`Unix (e, fn, v))
   in
   Fut.apply ?queue f' v
 
 let call f v =
-  let rec f' v = try `Ok (f v) with
+  let rec f' v = try Ok (f v) with
   | Unix.Unix_error (Unix.EINTR, _, _) -> f' v
-  | Unix.Unix_error (e, fn ,v) -> `Error (`Unix (e, fn, v))
+  | Unix.Unix_error (e, fn ,v) -> Error (`Unix (e, fn, v))
   in
   Fut.ret (f' v)
 
@@ -41,8 +42,8 @@ let nonblock_stdio () = (* TODO this is nonsense. *)
     Unix.set_nonblock Unix.stdin;
     Unix.set_nonblock Unix.stdout;
     Unix.set_nonblock Unix.stderr;
-    Fut.ret (`Ok ())
-  with Unix.Unix_error (e, fn, v) -> Fut.ret (`Error (`Unix (e, fn, v)))
+    Fut.ret (Ok ())
+  with Unix.Unix_error (e, fn, v) -> Fut.ret (Error (`Unix (e, fn, v)))
 
 let close fd = Fut.Runtime.fd_close fd; apply Unix.close fd
 let dup2 fd1 fd2 = Fut.Runtime.fd_close fd2; apply (Unix.dup2 fd1) fd2
@@ -51,13 +52,13 @@ let pipe () =
     let r, w as p = Unix.pipe () in
     Unix.set_nonblock r;
     Unix.set_nonblock w;
-    Fut.ret (`Ok p)
-  with Unix.Unix_error (e, fn, v) -> Fut.ret (`Error (`Unix (e, fn, v)))
+    Fut.ret (Ok p)
+  with Unix.Unix_error (e, fn, v) -> Fut.ret (Error (`Unix (e, fn, v)))
 
 (* IO *)
 
 let read fd s j k =
-  try Fut.ret (`Ok (Unix.read fd s j k)) with
+  try Fut.ret (Ok (Unix.read fd s j k)) with
   | Unix.Unix_error (e, f, v) -> match e with
   | Unix.EINTR | Unix.EAGAIN | Unix.EWOULDBLOCK ->
       let aborted = ref false in
@@ -66,18 +67,18 @@ let read fd s j k =
       let rec a valid_fd =
         if !aborted then () else
         if not valid_fd then Fut.set p `Never else
-        try Fut.set p (`Det (`Ok (Unix.read fd s j k))) with
+        try Fut.set p (`Det (Ok (Unix.read fd s j k))) with
         | Unix.Unix_error (e, f, v) -> match e with
         | Unix.EINTR | Unix.EAGAIN
         | Unix.EWOULDBLOCK -> Fut.Runtime.fd_action `R fd a
-        | e -> Fut.set p (`Det (`Error (`Unix (e, f, v))))
+        | e -> Fut.set p (`Det (Error (`Unix (e, f, v))))
       in
       Fut.Runtime.fd_action `R fd a;
       Fut.future p
-  | e -> Fut.ret (`Error (`Unix (e, f, v)))
+  | e -> Fut.ret (Error (`Unix (e, f, v)))
 
 let write fd s j k =
-  try Fut.ret (`Ok (Unix.single_write fd s j k)) with
+  try Fut.ret (Ok (Unix.single_write fd s j k)) with
   | Unix.Unix_error (e, f, v) -> match e with
   | Unix.EINTR | Unix.EAGAIN | Unix.EWOULDBLOCK ->
       let aborted = ref false in
@@ -86,14 +87,14 @@ let write fd s j k =
       let rec a valid_fd =
         if !aborted then () else
         if not valid_fd then Fut.set p `Never else
-        try Fut.set p (`Det (`Ok (Unix.single_write fd s j k))) with
+        try Fut.set p (`Det (Ok (Unix.single_write fd s j k))) with
         | Unix.Unix_error (e, f, v) -> match e with
         | Unix.EINTR | Unix.EAGAIN | Unix.EWOULDBLOCK ->
             Fut.Runtime.fd_action `W fd a
-        | e -> Fut.set p (`Det (`Error (`Unix (e, f, v))))
+        | e -> Fut.set p (`Det (Error (`Unix (e, f, v))))
       in
       Fut.Runtime.fd_action `W fd a; Fut.future p
-  | e -> Fut.ret (`Error (`Unix (e, f, v)))
+  | e -> Fut.ret (Error (`Unix (e, f, v)))
 
 (* Sockets *)
 
@@ -101,16 +102,16 @@ let socket d t p =
   try
     let s = Unix.socket d t p in
     Unix.set_nonblock s;
-    Fut.ret (`Ok s)
-  with Unix.Unix_error (e, fn, v) -> Fut.ret (`Error (`Unix (e, fn, v)))
+    Fut.ret (Ok s)
+  with Unix.Unix_error (e, fn, v) -> Fut.ret (Error (`Unix (e, fn, v)))
 
 let socketpair d t p =
   try
     let s0, s1 as p = Unix.socketpair d t p in
     Unix.set_nonblock s0;
     Unix.set_nonblock s1;
-    Fut.ret (`Ok p)
-  with Unix.Unix_error (e, fn, v) -> Fut.ret (`Error (`Unix (e, fn, v)))
+    Fut.ret (Ok p)
+  with Unix.Unix_error (e, fn, v) -> Fut.ret (Error (`Unix (e, fn, v)))
 
 let accept fd = failwith "TODO"
 let connect fd addr = failwith "TODO"

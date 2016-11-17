@@ -373,15 +373,12 @@ end
 
 (** {1 Error handling and status futures} *)
 
-type ('a, 'b) result = [ `Ok of 'a | `Error of 'b ]
-(** The type for results with errors. *)
+type ('a, 'b) result = ('a, 'b) Result.result t
+(** The type for future results. A future determining a result values. *)
 
-type ('a, 'b) status = ('a, 'b) result t
-(** The type for statuses. A future determining a result. *)
-
-val sbind : ('a, 'c) status -> ('a -> ('b, 'c) status) -> ('b, 'c) status
-val ok : 'a -> ('a, 'b) status
-val error : 'b -> ('a, 'b) status
+val rbind : ('a, 'c) result -> ('a -> ('b, 'c) result) -> ('b, 'c) result
+val ok : 'a -> ('a, 'b) result
+val error : 'b -> ('a, 'b) result
 
 (** {1 Infix operators}
 
@@ -393,8 +390,8 @@ val (>>=) : 'a t -> ('a -> 'b t) -> 'b t
 val (>>|) : 'a t -> ('a -> 'b) -> 'b t
 (** [f >>| fn] is [map fn f]. *)
 
-val (>>&) : ('a, 'c) status -> ('a -> ('b, 'c) status) -> ('b, 'c) status
-(** [f >>& fn] is [sbind f fn]. *)
+val (>>&) : ('a, 'c) result -> ('a -> ('b, 'c) result) -> ('b, 'c) result
+(** [f >>& fn] is [rbind f fn]. *)
 
 (** Infix operators.
 
@@ -409,8 +406,8 @@ module Op : sig
   val (>>|) : 'a t -> ('a -> 'b) -> 'b t
   (** [f >>| fn] is [map fn f]. *)
 
-  val (>>&) : ('a, 'c) status -> ('a -> ('b, 'c) status) -> ('b, 'c) status
-  (** [f >>& fn] is [sbind f fn]. *)
+  val (>>&) : ('a, 'c) result -> ('a -> ('b, 'c) result) -> ('b, 'c) result
+  (** [f >>& fn] is [rbind f fn]. *)
 end
 
 (** {1 Runtime system} *)

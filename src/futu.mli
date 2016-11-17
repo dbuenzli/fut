@@ -27,11 +27,11 @@ type error = [ `Unix of Unix.error * string * string ]
 (** The type for Unix errors as reported by {!Unix.Unix_error}
       exceptions. *)
 
-val apply : ?queue:Fut.queue -> ('a -> 'b) -> 'a -> ('b, [> error]) Fut.status
+val apply : ?queue:Fut.queue -> ('a -> 'b) -> 'a -> ('b, [> error]) Fut.result
   (** [apply queue f v] applies [f v] on [queue] and catches
       {!Unix.Unix_error}. [EINTR] is handled by retrying the call. *)
 
-val call : ('a -> 'b) -> 'a -> ('b, [> error]) Fut.status
+val call : ('a -> 'b) -> 'a -> ('b, [> error]) Fut.result
 (** [call f v] applies [f v] synchronously and catches
       {!Unix.Unix_error}. [EINTR] is handled by retrying the call. *)
 
@@ -50,32 +50,32 @@ val call : ('a -> 'b) -> 'a -> ('b, [> error]) Fut.status
 
 (** {1 File descriptors} *)
 
-val nonblock_stdio : unit -> (unit, [> error]) Fut.status
+val nonblock_stdio : unit -> (unit, [> error]) Fut.result
 (** [nonblock_stdio ()] sets {!Unix.stdin}, {!Unix.stdout}, {!Unix.stderr}
       to non-blocking mode. *)
 
-val close : Unix.file_descr -> (unit, [> error]) Fut.status
+val close : Unix.file_descr -> (unit, [> error]) Fut.result
 (** [close fd] is like [Unix.close fd], except it handles [EINTR] and
       sets any pending read or write on [fd] to never determine. *)
 
-val dup2 : Unix.file_descr -> Unix.file_descr -> (unit, [> error]) Fut.status
+val dup2 : Unix.file_descr -> Unix.file_descr -> (unit, [> error]) Fut.result
 (** [dup2 fd1 fd2] is like [Unix.dup2 fd1 fd2], except it handles [EINTR]
       and sets any pending read or write on [fd2] to never determine. *)
 
-val pipe : unit -> ((Unix.file_descr * Unix.file_descr), [> error]) Fut.status
+val pipe : unit -> ((Unix.file_descr * Unix.file_descr), [> error]) Fut.result
 (** [pipe ()] is like [Unix.pipe ()], except is sets both file descriptors
       to non-blocking mode with [Unix.set_nonblock]. *)
 
 (** {1 Sockets} *)
 
 val socket : Unix.socket_domain -> Unix.socket_type -> int ->
-  (Unix.file_descr, [> error]) Fut.status
+  (Unix.file_descr, [> error]) Fut.result
 (** [socket d t p] is like [Unix.socket d t p] except it sets the
       resulting file descriptor to non-blocking mode with
       [Unix.set_nonblock]. *)
 
 val socketpair : Unix.socket_domain -> Unix.socket_type -> int ->
-  ((Unix.file_descr * Unix.file_descr), [> error]) Fut.status
+  ((Unix.file_descr * Unix.file_descr), [> error]) Fut.result
 (** [socketpair d t p] is like [Unix.socketpair d t p] except it
       sets the resulting file descriptors to non-blocking mode with
       [Unix.set_nonblock].  *)
@@ -85,11 +85,11 @@ val accept : Unix.file_descr -> Unix.file_descr * Unix.sockaddr
       [EINTR] and [EWOULDBLOCK] and sets the resulting file descriptor
       to non-blocking mode with [Unix.set_nonblock]. *)
 
-val connect : Unix.file_descr -> Unix.sockaddr -> (unit, [> error]) Fut.status
+val connect : Unix.file_descr -> Unix.sockaddr -> (unit, [> error]) Fut.result
 (** [connect] is like {!Unix.connect} except it handles [EINTR] and
       [EINPROGRESS]. *)
 
-val bind : Unix.file_descr -> Unix.sockaddr -> (unit, [> error]) Fut.status
+val bind : Unix.file_descr -> Unix.sockaddr -> (unit, [> error]) Fut.result
 
 (** {1 IO}
 
@@ -99,13 +99,13 @@ val bind : Unix.file_descr -> Unix.sockaddr -> (unit, [> error]) Fut.status
       errors if there are undetermined futures concerning [fd]. *)
 
 val read : Unix.file_descr -> Bytes.t -> int -> int ->
-  (int, [> error]) Fut.status
+  (int, [> error]) Fut.result
 (** [read fd s j l] is like [Unix.read fd s j l] except it handles [EINTR],
     [EAGAIN] and [EWOULDBLOCK]. It is set to never determine if [fd] is
     closed with {!close} or {!dup2}. *)
 
 val write : Unix.file_descr -> Bytes.t -> int -> int ->
-  (int, [> error]) Fut.status
+  (int, [> error]) Fut.result
 (** [write fd s j l] is like [Unix.single_write fd s j l] except it handles
     [EINTR], [EAGAIN] and [EWOULDBLOCK]. It is set to never determine if [fd]
     is closed with {!close} or {!dup2}. *)

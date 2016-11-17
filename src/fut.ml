@@ -898,25 +898,24 @@ let tick d =
 
 (* Error handling *)
 
-type ('a, 'b) result = [ `Ok of 'a | `Error of 'b ]
-type ('a, 'b) status = ('a, 'b) result t
+type ('a, 'b) result = ('a, 'b) Result.result t
 
-let sbind f fn =
+let rbind f fn =
   bind f @@ function
-  | `Error _  as e -> ret e
-  | `Ok v -> fn v
+  | Result.Error _  as e -> ret e
+  | Result.Ok v -> fn v
 
-let ok v = { state = `Det (`Ok v) }
-let error e = { state = `Det (`Error e) }
+let ok v = { state = `Det (Result.Ok v) }
+let error e = { state = `Det (Result.Error e) }
 
 let ( >>= ) = bind           (* we have it here aswell for Fut.() notation. *)
 let ( >>| ) f fn = map fn f
-let ( >>& ) = sbind
+let ( >>& ) = rbind
 
 module Op = struct
   let ( >>= ) = bind
   let ( >>| ) f fn = map fn f
-  let ( >>& ) = sbind
+  let ( >>& ) = rbind
 end
 
 (*---------------------------------------------------------------------------
