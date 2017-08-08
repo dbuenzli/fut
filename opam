@@ -13,11 +13,17 @@ depends: [
   "ocamlbuild" {build}
   "topkg" {build}
   "result"
+
+  # Should be depopted
+  "js_of_ocaml" {>= "3.0"}
+  "js_of_ocaml-ocamlbuild" {>= "3.0"}
+  "js_of_ocaml-compiler" {>= "3.0"}
+  "js_of_ocaml-ppx" {>= "3.0"}
+
 ]
 depopts: [
   "base-unix"
   "react"
-  "js_of_ocaml"
 ]
 build: [[
   "ocaml" "pkg/pkg.ml" "build"
