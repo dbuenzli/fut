@@ -4,12 +4,14 @@
    %%NAME%% %%VERSION%%
   ---------------------------------------------------------------------------*)
 
-(* js_of_ocaml backend *) 
+(* js_of_ocaml backend *)
 
-let name = "fut.jsoo" 
+open Js_of_ocaml
+
+let name = "fut.jsoo"
 
 let now_ms () = (new%js Js.date_now) ## getTime
- 
+
 let start () = ()
 let stop () = ()
 let step ~timeout = failwith "await unsupported"
@@ -17,38 +19,38 @@ let step ~timeout = failwith "await unsupported"
 let action a = failwith "TODO action"
 let signal_action s a = failwith "TODO signal action"
 
-let timer_action d def = 
-  (* We don't use clearTimeout for abort, it seems unreliable in certain 
+let timer_action d def =
+  (* We don't use clearTimeout for abort, it seems unreliable in certain
      browsers, we'd still need a ref anyways since we only get the clearing
      id after having called setTimeout() *)
-  let action_ref = ref None in 
+  let action_ref = ref None in
   let abort () = action_ref := None in
   let action, v = def abort in
   action_ref := Some action;
   let ms = d *. 1000. in
   let exp_time_ms = now_ms () +. ms in
-  let cb () = match !action_ref with 
+  let cb () = match !action_ref with
   | None -> ()
   | Some action -> action ((now_ms () -. exp_time_ms) /. 1000.)
   in
-  ignore (Dom_html.window ## (setTimeout (Js.wrap_callback cb) ms)); 
+  ignore (Dom_html.window ## (setTimeout (Js.wrap_callback cb) ms));
   v
 
 let fd_action state fd a = failwith "TODO"
 let fd_close fd = failwith "TODO"
 let worker_count () = failwith "TODO"
-let set_worker_count count = 
-  if count < 0 
+let set_worker_count count =
+  if count < 0
   then invalid_arg (Fut_backend_base.err_invalid_worker_count count)
   else
   failwith "TODO"
-    
+
 module Queue = struct
   type t = unit
   let concurrent = ()
-  let create ?(label = Fut_backend_base.queue_auto_label ()) () = 
+  let create ?(label = Fut_backend_base.queue_auto_label ()) () =
     failwith "TODO"
-      
+
   let label q = failwith "TODO"
   let add_work q w = failwith "TODO"
 end

@@ -4,7 +4,8 @@
    %%NAME%% %%VERSION%%
   ---------------------------------------------------------------------------*)
 
-open Testing;;
+open Js_of_ocaml
+open Testing
 
 module Futj : sig
   val yield : (unit -> unit) -> unit

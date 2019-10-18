@@ -373,7 +373,7 @@ end
 
 (** {1:error Error handling} *)
 
-type ('a, 'b) result = ('a, 'b) Result.result t
+type nonrec ('a, 'b) result = ('a, 'b) result t
 (** The type for future results. A future determining a result values. *)
 
 val rbind : ('a, 'c) result -> ('a -> ('b, 'c) result) -> ('b, 'c) result

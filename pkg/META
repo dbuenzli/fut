@@ -62,7 +62,7 @@ package "select" (
 package "jsoo" (
   version = "%%VERSION%%"
   description = "Fut's js_of_ocaml backend"
-  requires = "js_of_ocaml js_of_ocaml.syntax fut.backend-base"
+  requires = "js_of_ocaml fut.backend-base"
   directory = "jsoo"
   archive(byte) = "fut_jsoo.cma"
   archive(native) = "fut_jsoo.cmxa"

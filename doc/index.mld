@@ -1,0 +1,15 @@
+{0 Fut {%html: <span class="version">%%VERSION%%</span>%}}
+
+Fut is a library for asynchronous programming in OCaml. It provides
+support to program with values that determine at some point in the
+future: future values.
+
+{1:api API}
+
+{!modules:
+Fut
+Futu
+Futr
+Fut_backend_base
+Fut_backend
+}

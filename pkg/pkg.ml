@@ -7,21 +7,13 @@ let base_unix = Conf.with_pkg "base-unix"
 let react = Conf.with_pkg "react"
 let jsoo = Conf.with_pkg "js_of_ocaml"
 
-let build =
-  let cmd c os files =
-    let jsoo_args = Cmd.(v "-plugin-tag" % "package(js_of_ocaml.ocamlbuild)") in
-    let jsoo = Cmd.(on (Conf.value c jsoo) jsoo_args) in
-    OS.Cmd.run @@ Cmd.(Pkg.build_cmd c os %% jsoo %% of_list files)
-  in
-  Pkg.build ~cmd ()
-
 let jsoo_test ~cond test =
   Pkg.flatten
     [ Pkg.test ~run:false ~cond ~auto:false (test ^ ".js");
       Pkg.test ~run:false ~cond ~auto:false (test ^ ".html"); ]
 
 let () =
-  Pkg.describe ~build "fut" @@ fun c ->
+  Pkg.describe "fut" @@ fun c ->
   let base_unix = Conf.value c base_unix in
   let react = Conf.value c react in
   let jsoo = Conf.value c jsoo in

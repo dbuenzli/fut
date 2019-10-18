@@ -1,13 +1,13 @@
-true : bin_annot, safe_string, package(bytes), package(result)
-
+true : bin_annot, safe_string
+<_b0> : -traverse
 <src> : include
 <src/futr.*> : package(react)
 
 <src-select/fut_backend*> : thread, package(threads unix)
-<src-jsoo/fut_backend.*> : package(js_of_ocaml), package(js_of_ocaml.ppx)
+<src-jsoo/fut_backend.*> : package(js_of_ocaml), package(js_of_ocaml-ppx)
 
 <test> : include
 <test/{test_select,cancel,sbox,uclient,examples}.*> : thread, \
   package(threads unix), use_select
 
-<test/test_jsoo.*> : package(js_of_ocaml), package(js_of_ocaml.ppx), use_jsoo
+<test/test_jsoo.*> : package(js_of_ocaml), package(js_of_ocaml-ppx), use_jsoo

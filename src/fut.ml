@@ -898,7 +898,7 @@ let tick d =
 
 (* Error handling *)
 
-type ('a, 'b) result = ('a, 'b) Result.result t
+type nonrec ('a, 'b) result = ('a, 'b) result t
 
 let rbind f fn =
   bind f @@ function
