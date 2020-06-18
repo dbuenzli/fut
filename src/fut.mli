@@ -64,14 +64,15 @@ val sync : 'a t -> 'a set
 
 val finally : ('a -> 'b) -> 'a -> 'c t -> 'c t
 (** [finally fn v f] is [f] but [fn v] is called (and its result
-    ignored) whenever [f] is set and immediately if [f] is already set
-    at call time. [fn] may safely use {!set_state}[ f] to determine
-    how it set. If [fn v] raises an exception it is reported to the
-    exception trap specified with {!Runtime.set_exn_trap}. *)
+    ignored) whenever [f] is set. It is called immediately if [f] is
+    already set at call time. [fn] may safely use {!state_set}[ f] to
+    determine how it was set. If [fn v] raises an exception it is
+    reported to the exception trap specified with
+    {!Runtime.set_exn_trap}. *)
 
 (** {2:applicative Applicative combinators}
 
-    These combinators have no effects on the determination
+    These combinators have no effect on the determination
     of their arguments. *)
 
 val never : unit -> 'a t
@@ -149,7 +150,7 @@ val first : 'a t -> 'a t -> ('a * 'a t) t
 *)
 
 val firstl : 'a t list -> ('a * 'a t list) t
-(** [next fs] is a future that determines [(v, fs')] where [v] is
+(** [firstl fs] is a future that determines [(v, fs')] where [v] is
     the first value to determine in [fs] and [fs'] are the remaining
     ones. If more than one future is already determined the first
     left one is taken.
@@ -167,7 +168,7 @@ val firstl : 'a t list -> ('a * 'a t list) t
     [`Never] and abort their determination.
 
     {b Important.} When a future is aborted, it is set to never
-    determine and all the future it may be waiting on (and
+    determine and all the futures it may be waiting on (and
     recursively) are also aborted, except those that are protected
     by {!protect}. Aborting a future that is set has no effect since
     once the future is set it never changes again.
@@ -186,12 +187,12 @@ val abort : 'a t -> unit
     {ul
     {- \[[f]\]{_t'} [= `Never] with t' > ta, if \[[f]\]{_ta} = [`Undet]
     where [ta] is [abort]'s application time.}}
-    TODO semantics we need to define a waits(f) that is the set of of futures
+    TODO semantics we need to define a waits(f) that is the set of futures
     [f] waits on. *)
 
 val protect : 'a t -> 'a t
 (** [protect f] is a future that behaves like [f] but is insensitive
-    to {!abort}. It may of course still never determine because of its
+    to {!abort}. It may, of course, still never determine because of its
     definition but its dependents are not able to abort it. [f] of
     course remains abortable. *)
 
